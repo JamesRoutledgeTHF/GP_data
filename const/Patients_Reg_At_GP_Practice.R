@@ -11,8 +11,15 @@ get_gp_stats <- function(con, period = c("monthly", "yearly", "financial")){
     financial = "
     CASE
       WHEN MONTH([Effective_Snapshot_Date]) >= 4
-      THEN YEAR([Effective_Snapshot_Date])
-      ELSE YEAR([Effective_Snapshot_Date]) - 1
+      THEN CONCAT(YEAR([Effective_Snapshot_Date]),
+      '/',
+      RIGHT(CAST(YEAR([Effective_Snapshot_Date]) + 1 AS VARCHAR(4)),2)
+      ) ELSE
+      CONCAT(
+      YEAR([Effective_Snapshot_Date]) - 1,
+      '/',
+      RIGHT(CAST(YEAR([Effective_Snapshot_Date]) AS VARCHAR(4)), 2)
+      )
       END
     "
   )
@@ -52,4 +59,4 @@ Period;
 dbGetQuery(con, query)
 }
 
-m <- get_gp_stats(con, "financial")
+m <- get_gp_stats(con, "yearly")
