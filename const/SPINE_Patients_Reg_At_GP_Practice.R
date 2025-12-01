@@ -136,6 +136,7 @@ ons_raw <- dbGetQuery(con, "
         YEAR(Effective_Snapshot_Date) AS YEAR,
         Size AS POP
     FROM Demography.ONS_Population_Estimates_For_LSOAs_By_Year_Of_Age1
+    WHERE YEAR(Effective_Snapshot_Date) >= 2017
 ")
 
 # --- 5. Age grouping & summarisation ------------------------------------------
