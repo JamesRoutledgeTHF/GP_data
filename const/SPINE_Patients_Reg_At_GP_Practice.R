@@ -63,7 +63,7 @@ Period;
 dbGetQuery(con, query)
 }
 
-yearly <- get_gp_stats(con, "yearly")
+#yearly <- get_gp_stats(con, "yearly")
 financial <- get_gp_stats(con, "financial")
 
 
@@ -180,99 +180,22 @@ ons_clean <- ons_raw %>%
 # Group by age categories
 ons_agegroup <- ons_clean %>%
   mutate(
+    AGE = as.numeric(Age),
     AGE = case_when(
-      !is.na(Age) & Age >= 0 & Age <= 4   ~ "0_4",
-      !is.na(Age) & Age >= 5 & Age <= 14  ~ "5_14",
-      !is.na(Age) & Age >= 15 & Age <= 44 ~ "15_44",
-      !is.na(Age) & Age >= 45 & Age <= 64 ~ "45_64",
-      !is.na(Age) & Age >= 65 & Age <= 74 ~ "65_74",
-      !is.na(Age) & Age >= 75 & Age <= 84 ~ "75_84",
-      !is.na(Age) & Age >= 85             ~ "85_PLUS",
+      AGE %in% 0:4   ~ "0_4",
+      AGE %in% 5:14  ~ "5_14",
+      AGE %in% 15:44 ~ "15_44",
+      AGE %in% 45:64 ~ "45_64",
+      AGE %in% 65:74 ~ "65_74",
+      AGE %in% 75:84 ~ "75_84",
+      AGE >= 85      ~ "85_PLUS",
       TRUE ~ NA_character_
     )
   ) %>%
-  filter(!is.na(AGE)) %>%  # Drop missing or weird ages if any
-  group_by(LSOA_CODE, YEAR, LSOA_DATE) %>%
-  summarise(TOTAL_POP = sum(POP, na.rm = TRUE), .groups = "drop") 
+  filter(!is.na(AGE)) %>% 
+  group_by(LSOA_CODE, AGE, YEAR, SEX) %>% 
+  summarise(TOTAL_POP = sum(POP, na.rm = TRUE), .groups = "drop")
 
-# Pivot the data to get sex/age as separate columns
-ons_pivot <- ons_agegroup %>%
-  pivot_wider(
-    names_from = c(SEX, AGE),
-    values_from = Total_POP,
-    values_fill = 0,  # Fill missing values with 0
-    names_sep = "_"
-  )
-
-# Check the resulting data
-head(ons_pivot)
-
-# Ensure all expected columns exist; define helper to safely extract or 0
-get_col_safe <- function(df, nm) if (nm %in% names(df)) df[[nm]] else 0
-
-# Join with imd_2011_2021 using both LSOA_CODE and LSOA_DATE (so 2017-20 join to 2011 rows)
-ons_with_imd <- ons_pivot %>%
-  left_join(imd_2011_2021, by = c("LSOA_CODE", "LSOA_DATE"))
-
-# Coalesce missing IMD_HEALTH to 0 
-ons_with_imd <- ons_with_imd %>% mutate(IMD_HEALTH = coalesce(IMD_HEALTH, 0))
-
-#adj_pop_df <- ons_with_imd %>%
- # rowwise() %>%
-#  mutate(
- #   MALE_0_4     = get_col_safe(cur_data_all(), "MALE_0_4"),
-  #  MALE_5_14    = get_col_safe(cur_data_all(), "MALE_5_14"),
-   # MALE_15_44   = get_col_safe(cur_data_all(), "MALE_15_44"),
-  #  MALE_45_64   = get_col_safe(cur_data_all(), "MALE_45_64"),
-   # MALE_65_74   = get_col_safe(cur_data_all(), "MALE_65_74"),
-  #  MALE_75_84   = get_col_safe(cur_data_all(), "MALE_75_84"),
-  #  MALE_85_PLUS = get_col_safe(cur_data_all(), "MALE_85_PLUS"),
-    
-   # FEMALE_0_4     = get_col_safe(cur_data_all(), "FEMALE_0_4"),
-  #  FEMALE_5_14    = get_col_safe(cur_data_all(), "FEMALE_5_14"),
-  #  FEMALE_15_44   = get_col_safe(cur_data_all(), "FEMALE_15_44"),
-  #  FEMALE_45_64   = get_col_safe(cur_data_all(), "FEMALE_45_64"),
-  #  FEMALE_65_74   = get_col_safe(cur_data_all(), "FEMALE_65_74"),
- #   FEMALE_75_84   = get_col_safe(cur_data_all(), "FEMALE_75_84"),
-  #  FEMALE_85_PLUS = get_col_safe(cur_data_all(), "FEMALE_85_PLUS"),
-    
- #   TOTAL_POP = sum(
-  #    MALE_0_4, MALE_5_14, MALE_15_44, MALE_45_64, MALE_65_74, MALE_75_84, MALE_85_PLUS,
-   #   FEMALE_0_4, FEMALE_5_14, FEMALE_15_44, FEMALE_45_64, FEMALE_65_74, FEMALE_75_84, FEMALE_85_PLUS,
-  #    na.rm = TRUE
-   # ),
-    
-    # Carr-Hill weighted adjusted pop 
-   # ADJUSTED_POP = (
-   #   2.354*MALE_0_4    + 1.000*MALE_5_14  + 0.913*MALE_15_44 + 1.373*MALE_45_64 +
-   #     2.531*MALE_65_74  + 3.254*MALE_75_84 + 3.193*MALE_85_PLUS +
-   #     2.241*FEMALE_0_4  + 1.030*FEMALE_5_14 + 1.885*FEMALE_15_44 +
-   #     2.115*FEMALE_45_64 + 2.820*FEMALE_65_74 + 3.301*FEMALE_75_84 +
-  #      3.090*FEMALE_85_PLUS
-  #  ) * (1.054 ^ IMD_HEALTH)
- # ) %>%
- # ungroup()
-
-# Compute AF per year, then apply back to each LSOA row
-year_factors <- adj_pop_df %>%
-  group_by(YEAR) %>%
-  summarise(
-    TOTAL = sum(TOTAL_POP, na.rm = TRUE),
-    ADJ   = sum(ADJUSTED_POP, na.rm = TRUE),
-    .groups = "drop"
-  ) %>%
-  mutate(AF = if_else(ADJ == 0, 1, TOTAL / ADJ))
-
-adj_pop_norm <- adj_pop_df %>%
-  left_join(year_factors %>% select(YEAR, AF), by = "YEAR") %>%
-  mutate(
-    NEED_ADJ_POP = ADJUSTED_POP * AF
-  ) %>%
-  select(YEAR, LSOA_CODE, NEED_ADJ_POP, TOTAL_POP) %>%
-  arrange(YEAR, LSOA_CODE)
-
-# columns: YEAR, LSOA_CODE, NEED_ADJ_POP, TOTAL_POP
-adj_pop_norm
 
 # Load the attribution datasets
 lsoa_attributions_df <- dbGetQuery(con, "
@@ -300,10 +223,9 @@ lsoa_prac_pc <- lsoa_attributions_df %>%
   mutate(
     LSOA_DATE = case_when(
       YEAR < 2021 ~ 2021,
-      YEAR >= 2021 ~ 2021
+      YEAR >= 2020 ~ 2021
     )
   )
-
 
 # Assign IMD at the practice level using the attributions dataset
 prac_imd <- lsoa_prac_pc %>% 

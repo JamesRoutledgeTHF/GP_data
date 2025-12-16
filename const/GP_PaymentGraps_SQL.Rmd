@@ -3,7 +3,18 @@ title: "GP_PaymentGraps_SQL"
 output: html_document
 ---
 
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  fig.width = 7,
+  fig.height = 5,
+  dpi = 300
+)
+
+```
+
 ```{R load_imd}
+
+library(dplyr)
 
 finance_imd_wide <- finance_datasets %>%
   pivot_wider(
@@ -634,7 +645,7 @@ Barchart_Total_Payments_By_Categories_over65 <- ggplot(Total_Finance_Categories_
   ) +
   scale_y_continuous(labels = scales::comma)+
   labs(
-    title = "Total NHS Payments by IMD Quintile (2023)",
+    title = "Total NHS Payments by Over 65 Quintile (2023)",
     x = "IMD Quintile (1 = Most Deprived, 5 = Least Deprived)",
     y = "Total Payments (£)"
   ) +
@@ -677,7 +688,7 @@ Barchart_Registered_Patients_By_Categories_over65 <- ggplot(Registered_Patients_
     hjust = 0.5
   ) +
   labs(
-    title = "Average NHS Payments per Registered Patient by IMD Quintile (2023)",
+    title = "Average NHS Payments per Registered Patient by Over 65 Quintile (2023)",
     x = "IMD Quintile (1 = Most Deprived, 5 = Least Deprived)",
     y = "Average Payment per Registered Patient (£)"
   ) +
@@ -707,7 +718,7 @@ Weighted_Patients_Finance_Categories_over65 <- Avg_Finance_Categories_over65 %>%
   ) %>%
   ungroup()
 
-Barchart_Weighted_Patients_By_Categories <- ggplot(
+Barchart_Weighted_Patients_By_Categories_Over65 <- ggplot(
   Weighted_Patients_Finance_Categories_over65,
   aes(
     x = as.factor(Over65_quintile),
@@ -723,7 +734,7 @@ Barchart_Weighted_Patients_By_Categories <- ggplot(
     hjust = 0.5
   ) +
   labs(
-    title = "Average NHS Payments per Weighted Patient by IMD Quintile (2023)",
+    title = "Average NHS Payments per Weighted Patient by Over 65 Quintile (2023)",
     x = "IMD Quintile (1 = Most Deprived, 5 = Least Deprived)",
     y = "Average Payment per Weighted Patient (£)"
   ) +
@@ -734,4 +745,16 @@ Barchart_Weighted_Patients_By_Categories <- ggplot(
     axis.text.x = element_text(face = "bold"),
     plot.title = element_text(face = "bold", size = 16)
   )
+
+
+#print in Markdown
+print(Weighted_By_Year)
+print(Registered_By_Year)
+print(Barchart_Total_Payments_By_Categories)
+print(Barchart_Registered_Patients_By_Categories)
+print(Barchart_Weighted_Patients_By_Categories)
+print(Barchart_Registered_Patients_By_Categories_over65)
+print(Barchart_Total_Payments_By_Categories_over65)
+print(Barchart_Weighted_Patients_By_Categories_Over65)
+
 ```
