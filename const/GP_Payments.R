@@ -246,11 +246,13 @@ GP_Salary_Combined_long_clean <- GP_Salary_Combined_long %>%
 ggplot(GP_Salary_Combined_long_clean, aes(x = Year, y = Value, group = Type, color = Type)) +
   geom_line(size = 1) +  # Increase line thickness
   geom_point(size = 2) +   # Add dots at each year
-  labs(title = "Value over Years by Type",
+  labs(title = "GP Earnings over time",
        x = "Year",
-       y = "Value") +
-  scale_y_continuous(limits = c(0, 200000), expand = c(0, 0)) +  # Set y-axis to start at 0
-  theme_minimal()
+       y = "Mean income before tax") +
+  scale_y_continuous(limits = c(0, 190000), expand = c(0, 0)) +  # Set y-axis to start at 0
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels by 45 degrees
+
 
 
 
@@ -269,10 +271,10 @@ library(ggplot2)
 ggplot(GP_Salary_Workforce_combined, aes(x = Year, y = Payment_to_FTE, color = Type, group = Type)) +
   geom_line(size = 1) + 
   geom_point(size = 3) +  # Add dots at each year point
-  labs(title = "Payment to FTE Ratio by Financial Year and GP Type",
-       x = "Financial Year",
-       y = "Payment to FTE Ratio") +
-  scale_y_continuous(limits = c(0, NA)) +  # Set Y-axis to start at 0
+  labs(title = "Mean income before taxt relative to FTE by GP Type",
+       x = "Year",
+       y = "Mean income before tax relative to FTE") +
+  scale_y_continuous(limits = c(0, 190000)) +  # Set Y-axis to start at 0
   scale_x_discrete(limits = c("2015/16", "2016/17", "2017/18", "2018/19", "2019/20", "2020/21", "2021/22", "2022/23", "2023/24")) +  # Adjust X-axis limits
   theme_minimal() +
   theme(axis.text.x = element_text(angle = 45, hjust = 1))  # Rotate x-axis labels for readability
