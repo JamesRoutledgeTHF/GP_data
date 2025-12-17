@@ -1,10 +1,12 @@
+library(writexl)
+
 
 #join IMD onto and then group by year and imd, add the avg registered and weighted columns for each group as well 
 finances_IMD_PRACTICE <- finances_GROUPED_TOTAL %>%
   left_join(prac_imd, by = c("YEAR", "PRACTICE_CODE")) %>%
   filter(!is.na(IMD_QUINTILE)) %>%
   mutate(IMD_QUINTILE = as.factor(IMD_QUINTILE)) %>%
-  group_by(IMD_QUINTILE, YEAR, PRACTICE_CODE) %>%
+  group_by(PRACTICE_CODE, IMD_QUINTILE, YEAR) %>%
   summarise(
     Global_Sum          = sum(Total.Global.Sum, na.rm = TRUE),
     IT_Premises         = sum(Total.IT.Premises, na.rm = TRUE),
@@ -25,21 +27,23 @@ finances_IMD_PRACTICE <- finances_GROUPED_TOTAL %>%
       "Avg (Weighted)"   = ~ . / WEIGHTED
     ),
     .names = "{.col} {fn}"
-  ))
+  )) 
 
+write_xlsx(finances_IMD_PRACTICE, "finances_IMD_PRACTICE.xlsx")
 
-imd_models <- Weighted_Patients_Finance_Categories %>%
-  group_by(`Payment Category`) %>%
-  do(
-    model = lm(`Total (£)` ~ IMD_QUINTILE, data = .)
+finances_IMD_PRACTICE <- finances_IMD_PRACTICE %>%
+  mutate(
+    `PCO_Payments Avg (Weighted)` = as.numeric(`PCO_Payments Avg (Weighted)`)  # Convert column to numeric
   )
 
-imd_results <- imd_models %>%
-  mutate(tidy = map(model, tidy))%>%
-  unnest(tidy)
+# Ensure no scientific notation is displayed
+options(scipen = 999)  # This makes R avoid scientific notation
 
-gs_data <- Weighted_Patients_Finance_Categories%>%
-  filter(`Payment Category` == "Global_Sum Avg (Weighted)")
+# If you need to format it manually without scientific notation
+finances_IMD_PRACTICE <- finances_IMD_PRACTICE %>%
+  mutate(
+    Prescribing_Weighted = format(PCO_Payments, scientific = FALSE)
+  )
 
 finances_IMD_PRACTICE$IMD_QUINTILE <- factor(finances_IMD_PRACTICE$IMD_QUINTILE,
                                              levels = c('5', '1', '2', '3', '4'))
@@ -76,3 +80,9 @@ summary(PCO_Model_reg)
 summary(LIS_Model_reg)
 summary(DES_Model_reg)
 
+df_cat <- Weighted_Patients_Finance_Categories %>%
+  filter(PayCat_base == "Prescribing Avg")
+
+anova <- aov(`Total (£)` ~ IMD_QUINTILE, data = df_cat)
+
+summary(anova)

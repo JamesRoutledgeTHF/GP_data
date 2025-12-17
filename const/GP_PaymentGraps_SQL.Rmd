@@ -419,7 +419,7 @@ Barchart_Total_Payments_By_Categories <- ggplot(Total_Finance_Categories, aes(
     legend.position = "right",
     panel.grid.minor = element_blank(),
     axis.text.x = element_text(face = "bold"),
-    plot.title = element_text(face = "bold", size = 16)
+    plot.title = element_text(face = "bold", size = 12)
   )
 
 Registered_Patients_Finance_Categories <- Avg_Finance_Categories %>%
@@ -462,7 +462,7 @@ Barchart_Registered_Patients_By_Categories <- ggplot(Registered_Patients_Finance
     legend.position = "right",
     panel.grid.minor = element_blank(),
     axis.text.x = element_text(face = "bold"),
-    plot.title = element_text(face = "bold", size = 16)
+    plot.title = element_text(face = "bold", size = 12)
   )
 
 Weighted_Patients_Finance_Categories <- Avg_Finance_Categories %>%
@@ -508,17 +508,10 @@ Barchart_Weighted_Patients_By_Categories <- ggplot(
     legend.position = "right",
     panel.grid.minor = element_blank(),
     axis.text.x = element_text(face = "bold"),
-    plot.title = element_text(face = "bold", size = 16)
+    plot.title = element_text(face = "bold", size = 12)
   )
 
-#print in Markdown
-print(Weighted_By_Year)
-print(Registered_By_Year)
-#print(Adj_By_Year)
-print(Barchart_Total_Payments_By_Categories)
-print(Barchart_Registered_Patients_By_Categories)
-print(Barchart_Weighted_Patients_By_Categories)
-#print(Barchart_Adj_Patients_By_Categories)
+
 
 #For ease to print into a PDF cleanly
 # Create a list of all plots
@@ -654,7 +647,7 @@ Barchart_Total_Payments_By_Categories_over65 <- ggplot(Total_Finance_Categories_
     legend.position = "right",
     panel.grid.minor = element_blank(),
     axis.text.x = element_text(face = "bold"),
-    plot.title = element_text(face = "bold", size = 16)
+    plot.title = element_text(face = "bold", size = 12)
   )
 
 Registered_Patients_Finance_Categories_Over65 <- Avg_Finance_Categories_over65 %>%
@@ -689,7 +682,7 @@ Barchart_Registered_Patients_By_Categories_over65 <- ggplot(Registered_Patients_
   ) +
   labs(
     title = "Average NHS Payments per Registered Patient by Over 65 Quintile (2023)",
-    x = "IMD Quintile (1 = Most Deprived, 5 = Least Deprived)",
+    x = "% Over 65 Quintile (1 = Least over 65, 5 = Most over 65)",
     y = "Average Payment per Registered Patient (£)"
   ) +
   theme_minimal(base_size = 14) +
@@ -697,7 +690,7 @@ Barchart_Registered_Patients_By_Categories_over65 <- ggplot(Registered_Patients_
     legend.position = "right",
     panel.grid.minor = element_blank(),
     axis.text.x = element_text(face = "bold"),
-    plot.title = element_text(face = "bold", size = 16)
+    plot.title = element_text(face = "bold", size = 12)
   )
 
 Weighted_Patients_Finance_Categories_over65 <- Avg_Finance_Categories_over65 %>%
@@ -735,7 +728,7 @@ Barchart_Weighted_Patients_By_Categories_Over65 <- ggplot(
   ) +
   labs(
     title = "Average NHS Payments per Weighted Patient by Over 65 Quintile (2023)",
-    x = "IMD Quintile (1 = Most Deprived, 5 = Least Deprived)",
+    x = "% Over 65 Quintile (1 = Least over 65, 5 = Most over 65)",
     y = "Average Payment per Weighted Patient (£)"
   ) +
   theme_minimal(base_size = 14) +
@@ -743,7 +736,7 @@ Barchart_Weighted_Patients_By_Categories_Over65 <- ggplot(
     legend.position = "right",
     panel.grid.minor = element_blank(),
     axis.text.x = element_text(face = "bold"),
-    plot.title = element_text(face = "bold", size = 16)
+    plot.title = element_text(face = "bold", size = 12)
   )
 
 
@@ -756,5 +749,6 @@ print(Barchart_Weighted_Patients_By_Categories)
 print(Barchart_Registered_Patients_By_Categories_over65)
 print(Barchart_Total_Payments_By_Categories_over65)
 print(Barchart_Weighted_Patients_By_Categories_Over65)
+
 
 ```
