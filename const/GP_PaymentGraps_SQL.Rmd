@@ -1057,25 +1057,31 @@ barplot_data <- finances_Practice %>%
     values_to = "Avg_Payment"
   ) %>%
   mutate(
-    Patient_Type = factor(Patient_Type,
-                          levels = c("Registered", "Weighted")),
-    Dispensing_Practice = factor(Dispensing_Practice,
-                                 levels = c("Yes", "No")),
-    Group = interaction(Dispensing_Practice, Patient_Type, sep = " - ")
+    Group = factor(
+      paste(Dispensing_Practice, Patient_Type, sep = " - "),
+      levels = c(
+        "Yes - Registered",
+        "Yes - Weighted",
+        "No - Registered",
+        "No - Weighted"
+      )
+    )
   )
 
 
+
 ggplot(barplot_data,
-       aes(x = Payment_Category,
-           y = Avg_Payment,
-           fill = Group)) +
-  geom_col(position = "dodge") +
+       aes(y = Group,
+           x = Avg_Payment,
+           fill = Payment_Category)) +
+  geom_col() +
   labs(
-    x = "Payment Category",
-    y = "Average Payment per Patient"
+    y = NULL,
+    x = "Average Payment per Patient",
+    fill = "Payment Category"
   ) +
-  theme_minimal() +
-  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  theme_minimal()
+
 
 
 ```
