@@ -1012,4 +1012,37 @@ ggplot(finances_Practice_binned_long) +
 
 
 
+# First, let's summarize the finances data
+finances_Practice <- finances_GROUPED_TOTAL %>%
+  left_join(prac_imd, by = c("YEAR", "PRACTICE_CODE")) %>%      # Join with IMD data
+  filter(!is.na(IMD_QUINTILE), YEAR == 2023) %>%                 # Filter for YEAR = 2023 and non-missing IMD_QUINTILE
+  mutate(IMD_QUINTILE = as.factor(IMD_QUINTILE)) %>%              # Ensure IMD_QUINTILE is a factor
+  group_by(YEAR, Dispensing_Practice) %>%                               # Group by YEAR and PRACTICE_CODE
+  summarise(
+    Global_Sum          = sum(Total.Global.Sum, na.rm = TRUE),
+    IT_Premises         = sum(Total.IT.Premises, na.rm = TRUE),
+    Other_And_PCOAdmin  = sum(Total.OtherAndPCOAdmin, na.rm = TRUE),
+    Directed_Enhanced_Services = sum(Total.DirectedEnhancedServices, na.rm = TRUE),
+    ACCESSANDTRANSFORMATION = sum(Total.AccessAndTransFormation, na.rm = TRUE),
+    Local_Incentive_Schemes = sum(LIS, na.rm = TRUE),
+    Prescribing         = sum(PRESCRIBING_FEE, na.rm = TRUE),
+    Dispensing          = sum(DISPENSING_FEE, na.rm = TRUE),
+    Deductions          = sum(DEDUCTIONS, na.rm = TRUE),
+    DrugReinbursement   = sum(REINBURSMENT_FEE, na.rm = TRUE),
+    QOF                 = sum(QOF_PAYMENT, na.rm = TRUE),
+    PCNPARTICIPATION    = sum(PCNP, na.rm = TRUE),
+    REGISTERED          = sum(REGISTERED_PATIENTS, na.rm = TRUE),
+    WEIGHTED            = sum(WEIGHTED_PATIENTS, na.rm = TRUE),
+    .groups = "drop"
+  )%>%
+  mutate(across(
+    c(Global_Sum, IT_Premises, Other_And_PCOAdmin, Directed_Enhanced_Services, Local_Incentive_Schemes, Prescribing, Dispensing, DrugReinbursement, QOF, Deductions, PCNPARTICIPATION, ACCESSANDTRANSFORMATION),
+    list(
+      "Avg (Registered)" = ~ . / REGISTERED,
+      "Avg (Weighted)"   = ~ . / WEIGHTED
+    ),
+    .names = "{.col} {fn}"
+  ))
+
+
 ```
