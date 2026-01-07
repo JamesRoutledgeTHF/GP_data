@@ -1044,5 +1044,38 @@ finances_Practice <- finances_GROUPED_TOTAL %>%
     .names = "{.col} {fn}"
   ))
 
+barplot_data <- finances_Practice %>%
+  select(
+    Dispensing_Practice,
+    ends_with("Avg (Registered)"),
+    ends_with("Avg (Weighted)")
+  ) %>%
+  pivot_longer(
+    cols = -Dispensing_Practice,
+    names_to = c("Payment_Category", "Patient_Type"),
+    names_pattern = "^(.*) Avg \\((Registered|Weighted)\\)$",
+    values_to = "Avg_Payment"
+  ) %>%
+  mutate(
+    Patient_Type = factor(Patient_Type,
+                          levels = c("Registered", "Weighted")),
+    Dispensing_Practice = factor(Dispensing_Practice,
+                                 levels = c("Yes", "No")),
+    Group = interaction(Dispensing_Practice, Patient_Type, sep = " - ")
+  )
+
+
+ggplot(barplot_data,
+       aes(x = Payment_Category,
+           y = Avg_Payment,
+           fill = Group)) +
+  geom_col(position = "dodge") +
+  labs(
+    x = "Payment Category",
+    y = "Average Payment per Patient"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
 
 ```
