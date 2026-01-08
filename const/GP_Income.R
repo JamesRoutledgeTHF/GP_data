@@ -23,7 +23,6 @@ GP_income_range <- dbGetQuery(con, "
   WHERE 
         [Contract_Type] = 'GPMS' AND 
         [Country] = 'England' AND
-        [Effective_Snapshot_Date] = '2024-03-31' AND
         ([Range_Of_Income_Before_Tax_From_Self_Employment] IS NOT NULL OR
          [Range_Of_Total_Income_Before_Tax] IS NOT NULL)
 ")

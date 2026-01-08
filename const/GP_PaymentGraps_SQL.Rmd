@@ -281,7 +281,7 @@ finances_IMD_TOTAL <- finances_GROUPED_TOTAL %>%
     WEIGHTED            = sum(WEIGHTED_PATIENTS, na.rm = TRUE),
     .groups = "drop"
   ) %>%
-  mutate(Deductions = abs(Deductions)) %>%  # Convert Deductions to positive
+ # mutate(Deductions = abs(Deductions)) %>%  # Convert Deductions to positive
   mutate(across(
     c(Global_Sum, IT_Premises, Other_And_PCOAdmin, Directed_Enhanced_Services, Local_Incentive_Schemes, Prescribing, Dispensing, DrugReinbursement, QOF, Deductions, PCNPARTICIPATION, ACCESSANDTRANSFORMATION),
     list(
@@ -329,15 +329,15 @@ ordered_levels_avg <- rev(c(
 ordered_levels_sum <- rev(c(
    "Global_Sum",
   "IT_Premises",
-  "QOF Avg",
+  "QOF",
   "Local_Incentive_Schemes",
   "Directed_Enhanced_Services",
   "ACCESSANDTRANSFORMATION",
   "PCNPARTICIPATION",
  # "COVID_19 Avg",
   "Other_And_PCOAdmin",
-  "Prescribing Avg",
-  "Dispensing Avg",
+  "Prescribing",
+  "Dispensing",
   "DrugReinbursement",
   "Deductions"
 ))
@@ -442,7 +442,7 @@ Barchart_Total_Payments_By_Categories <- ggplot(Total_Finance_Categories, aes(
       scales::percent(pct, accuracy = 1),  # Percentage (50%)
       "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
     )),
-    size = 1.5,
+    size = 1.8,
     position = position_stack(vjust = 0.5),
     hjust = 0.5
   ) +
@@ -489,7 +489,7 @@ Barchart_Registered_Patients_By_Categories <- ggplot(Registered_Patients_Finance
       scales::percent(pct, accuracy = 1),  # Percentage (50%)
       "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
     )),
-    size = 1.5,
+    size = 1.8,
     position = position_stack(vjust = 0.5),
     hjust = 0.5
   ) +
@@ -538,7 +538,7 @@ Barchart_Weighted_Patients_By_Categories <- ggplot(
       scales::percent(pct, accuracy = 1),  # Percentage (50%)
       "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
     )),
-    size = 1.5,
+    size = 1.8,
     position = position_stack(vjust = 0.5),
     hjust = 0.5
   ) +
@@ -681,7 +681,7 @@ Barchart_Total_Payments_By_Categories_over65 <- ggplot(Total_Finance_Categories_
       scales::percent(pct, accuracy = 1),  # Percentage (50%)
       "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
     )),
-    size = 1.5,
+    size = 2.5,
     position = position_stack(vjust = 0.5),
     hjust = 0.5
   ) +
@@ -728,7 +728,7 @@ Barchart_Registered_Patients_By_Categories_over65 <- ggplot(Registered_Patients_
       scales::percent(pct, accuracy = 1),  # Percentage (50%)
       "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
     )),
-    size = 1.5,
+    size = 2.5,
     position = position_stack(vjust = 0.5),
     hjust = 0.5
   ) +
@@ -777,7 +777,7 @@ Barchart_Weighted_Patients_By_Categories_Over65 <- ggplot(
       scales::percent(pct, accuracy = 1),  # Percentage (50%)
       "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
     )),
-    size = 1.5,
+    size = 2.5,
     position = position_stack(vjust = 0.5),
     hjust = 0.5
   ) +
@@ -937,12 +937,6 @@ print(Barchart_Registered_Patients_By_Categories_ALL)
 
 #variation across practices 
 
-
-library(dplyr)
-
-library(dplyr)
-library(ggplot2)
-
 library(dplyr)
 library(ggplot2)
 library(tidyr)
@@ -983,33 +977,31 @@ finances_Practice <- finances_GROUPED_TOTAL %>%
 # Now, create the bins for Avg (Registered) and Avg (Weighted)
 finances_Practice_binned <- finances_Practice %>%
   mutate(
-    `Registered Bin` = cut(`Avg (Registered)`, breaks = seq(0, 500, by = 10), right = FALSE, include.lowest = TRUE, 
+    `Registered Group` = cut(`Avg (Registered)`, breaks = seq(0, 500, by = 10), right = FALSE, include.lowest = TRUE, 
                            labels = paste(seq(0, 490, by = 10), seq(9, 499, by = 10), sep = "-")),
-    `Weighted Bin` = cut(`Avg (Weighted)`, breaks = seq(0, 500, by = 10), right = FALSE, include.lowest = TRUE, 
+    `Weighted Group` = cut(`Avg (Weighted)`, breaks = seq(0, 500, by = 10), right = FALSE, include.lowest = TRUE, 
                          labels = paste(seq(0, 490, by = 10), seq(9, 499, by = 10), sep = "-"))
   )
 
 # Reshape data to long format for easier plotting
 finances_Practice_binned_long <- finances_Practice_binned %>%
-  pivot_longer(cols = c(`Registered Bin`, `Weighted Bin`), 
+  pivot_longer(cols = c(`Registered Group`, `Weighted Group`), 
                names_to = "Metric", 
                values_to = "Bin")
 
 # Now, let's create the side-by-side histogram using ggplot2
-ggplot(finances_Practice_binned_long) +
+paymentVariation <- ggplot(finances_Practice_binned_long) +
   geom_bar(aes(x = Bin, fill = Metric), position = "dodge", alpha = 0.7, width = 0.8) +
-  scale_fill_manual(values = c("Registered Bin" = "blue", "Weighted Bin" = "red")) +
-  labs(x = "Average (Registered) and (Weighted) Binned into £10 Intervals", 
+  scale_fill_manual(values = c("Registered Group" = "blue", "Weighted Group" = "red")) +
+  labs(x = "Practices by average Registered and Weighted payments per capita Grouped into £10 Intervals", 
        y = "Count of Practices", 
-       title = "Side-by-Side Histogram of Average Registered and Weighted Values") +
+       title = "Variation in payments per capita across practices") +
   theme(axis.text.x = element_text(angle = 45, hjust = 1), 
         axis.title.x = element_text(size = 12), 
         axis.title.y = element_text(size = 12),
         legend.title = element_blank())
 
-
-
-
+print(paymentVariation)
 
 
 # First, let's summarize the finances data
@@ -1044,6 +1036,23 @@ finances_Practice <- finances_GROUPED_TOTAL %>%
     .names = "{.col} {fn}"
   ))
 
+# Define the custom order for categories
+ALL_ordered_levels_avg <- rev(c(
+  "Global_Sum",
+  "IT_Premises",
+  "QOF",
+  "Local_Incentive_Schemes",
+  "Directed_Enhanced_Services",
+  "ACCESSANDTRANSFORMATION",
+  "PCNPARTICIPATION",
+  "Other_And_PCOAdmin",
+  "Prescribing",
+  "Dispensing",
+  "DrugReinbursement",
+  "Deductions"
+))
+
+# Prepare the data
 barplot_data <- finances_Practice %>%
   select(
     Dispensing_Practice,
@@ -1060,28 +1069,37 @@ barplot_data <- finances_Practice %>%
     Group = factor(
       paste(Dispensing_Practice, Patient_Type, sep = " - "),
       levels = c(
+         "Yes - Weighted",
+        "No - Weighted",
         "Yes - Registered",
-        "Yes - Weighted",
-        "No - Registered",
-        "No - Weighted"
+        "No - Registered"
       )
     )
   )
 
+# Apply factor ordering separately to Payment_Category
+barplot_data$Payment_Category <- factor(
+  barplot_data$Payment_Category,
+  levels = ALL_ordered_levels_avg
+)
 
-
-ggplot(barplot_data,
+dispensingPlot <- ggplot(barplot_data,
        aes(y = Group,
            x = Avg_Payment,
            fill = Payment_Category)) +
   geom_col() +
+  # Add the Avg_Payment data labels centered on each bar
+  geom_text(aes(label = round(Avg_Payment, 0)), 
+            position = position_stack(vjust = 0.5),  # Position text in the center of the bar
+            color = "black", size = 3) +  # White text for contrast
   labs(
     y = NULL,
     x = "Average Payment per Patient",
     fill = "Payment Category"
   ) +
-  theme_minimal()
+  theme_minimal() 
 
+print(dispensingPlot)
 
 
 ```

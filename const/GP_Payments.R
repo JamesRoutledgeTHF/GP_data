@@ -141,21 +141,53 @@ GP_Workforce_pivoted <- GP_Workforce_pivoted %>%
                        "GP Partners" = "Contractor", 
                        "Salaried GPs" = "Salaried"))  # Recode the values
 
-
-
 # View the results
 head(GP_Workforce_avg)
 
 # Load dplyr library
 library(dplyr)
 
-GP_Salary_Contractor <- read_excel("gpearnextime_202324 V2.xlsx", sheet = "1a. Contractor earn. by country", skip = 7)
+GP_Salary_Contractor <- read_excel("gpearnextime_202324 V2.xlsx", sheet = "1b. GPMS Contractor REAL TERMS", skip = 7)
 
-GP_Salary_Contractor <- GP_Salary_Contractor%>%
-  filter(Country == "England") %>%
-  filter(`Practice Type \r\n[note 5]` == "All practices") %>%
-  filter(Category == "Income Before Tax") %>%
-  filter(`Contract Type\r\n[note 6]` == "GPMS")
+# Step 1: Clean the column names by removing anything after "/XX" including spaces, special characters, and [note]
+cleaned_colnames <- gsub("/\\d{2}.*", "", colnames(GP_Salary_Contractor))
+
+# Step 2: Identify the columns that match the cleaned "20XX/XX" format (ignoring the notes and extra characters)
+matching_columns <- grep("^\\d{4}/\\d{2}$", cleaned_colnames, value = TRUE)
+
+# Step 3: Find columns to the left and right of each "20XX/XX" column
+columns_to_label <- c()
+for (col in matching_columns) {
+  col_index <- which(cleaned_colnames == col)
+  
+  # Get the column to the left (if it exists)
+  if (col_index > 1) {
+    columns_to_label <- c(columns_to_label, colnames(GP_Salary_Contractor)[col_index - 1])
+  }
+  
+  # Get the column to the right (if it exists)
+  if (col_index < ncol(GP_Salary_Contractor)) {
+    columns_to_label <- c(columns_to_label, colnames(GP_Salary_Contractor)[col_index + 1])
+  }
+}
+
+# Remove duplicates in case the same column appears multiple times
+columns_to_label <- unique(columns_to_label)
+
+# Step 4: Filter the dataset, keeping only GDP columns from the 3rd column onward
+GDP_columns <- colnames(GP_Salary_Contractor)[sapply(GP_Salary_Contractor[1, ], function(x) grepl("GDP", as.character(x)))]
+
+# Apply the filter and select necessary columns (GDP columns and columns with 20XX/XX labels)
+GP_Salary_Contractor_filtered <- GP_Salary_Contractor %>%
+  select(c("Category", GDP_columns, columns_to_label)) %>%
+  filter(Category == "Income before tax")
+
+# View the first few rows to confirm
+head(GP_Salary_Contractor_filtered)
+
+
+#%>%
+ # filter(`Contract Type\r\n[note 6]` == "GPMS")
 
 # Find the column that matches "2014/15 [note 4]" exactly and remove it
 GP_Salary_Contractor <- GP_Salary_Contractor[, !grepl("^2014/15 \\[note 4\\]$", colnames(GP_Salary_Contractor))]
@@ -190,7 +222,6 @@ str(GP_Workforce)
 GP_Salary_Salaried <- read_excel("gpearnextime_202324 V2.xlsx", sheet = "8a. Salaried by Country ", skip = 7 )
 
 GP_Salary_Salaried <- GP_Salary_Salaried%>%
-  filter(Country == "England") %>%
   filter(`Category [note 22] \r\n[note 23] [note 24]` == "Total Income Before Tax")%>%
   filter(`Contract Type\r\n[note 6]` == "GPMS")
 
