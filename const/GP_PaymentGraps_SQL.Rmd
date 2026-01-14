@@ -32,6 +32,21 @@ filtered_for_metrics <- finance_datasets %>%
 finance_datasets <- finance_datasets %>%
   anti_join(filtered_for_metrics, by = c("YEAR", "Practice_Code"))
 
+outliers_005pct <- finance_datasets %>%
+  filter(Metric %in% relevant_metrics) %>%
+  group_by(YEAR) %>%
+  mutate(
+    p005 = quantile(Metric_Value, 0.005, na.rm = TRUE),
+    p995 = quantile(Metric_Value, 0.995, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  filter(Metric_Value <= p005 | Metric_Value >= p995) %>%
+  distinct(YEAR, Practice_Code)
+
+finance_datasets <- finance_datasets %>%
+  anti_join(outliers_005pct, by = c("YEAR", "Practice_Code"))
+
+
 finance_imd_wide <- finance_datasets %>%
   pivot_wider(
     names_from = Metric, 

@@ -78,7 +78,6 @@ ggplot(finances_IMD_PRACTICE_avg_long, aes(x = Avg_Payment, y = IMD_QUINTILE, fi
     legend.text = element_text(size = 10)
   )
 
-
 #write_xlsx(finances_IMD_PRACTICE, "finances_IMD_PRACTICE.xlsx")
 
 #finances_IMD_PRACTICE <- finances_IMD_PRACTICE %>%
@@ -130,9 +129,16 @@ summary(Other_And_PCOAdmin_Model)
 summary(LIS_Model_reg)
 summary(DES_Model_reg)
 
-df_cat <- Weighted_Patients_Finance_Categories %>%
-  filter(PayCat_base == "Prescribing Avg")
 
-anova <- aov(`Total (£)` ~ IMD_QUINTILE, data = df_cat)
+finance_imd_wide_regression <- finance_imd_wide_regression %>%
+  mutate(
+    Contract_Type = factor(Contract_Type),
+    Dispensing_Practice = factor(Dispensing_Practice),
+    Practice_Rurality = factor(Practice_Rurality)
+  )
 
-summary(anova)
+All_regression <- lm(`Average payments per registered patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + `Average Number of Registered Patients` + Pct_Over_65 + Pct_Male, data = finance_imd_wide_regression)
+summary(All_regression)
+
+
+
