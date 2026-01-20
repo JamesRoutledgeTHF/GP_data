@@ -1016,6 +1016,41 @@ paymentVariation <- ggplot(finances_Practice_binned_long) +
         axis.title.y = element_text(size = 12),
         legend.title = element_blank())
 
+# Step 1: Create bins for both `Avg (Registered)` and `Avg (Weighted)` independently
+finances_Practice_binned <- finances_Practice %>%
+  mutate(
+    # Create bins for `Avg (Registered)`
+    `Registered Bin` = cut(
+      `Avg (Registered)`,
+      breaks = seq(0, 500, by = 10),   # Define bin ranges (0-10, 10-20, ..., 490-500)
+      right = FALSE,                   # Ensure bins are closed on the left
+      include.lowest = TRUE,           # Include the lowest value in the first bin
+      labels = paste(seq(0, 490, by = 10), seq(9, 499, by = 10), sep = "-")
+    ),
+    
+    # Create bins for `Avg (Weighted)`
+    `Weighted Bin` = cut(
+      `Avg (Weighted)`,
+      breaks = seq(0, 500, by = 10),   # Define bin ranges (0-10, 10-20, ..., 490-500)
+      right = FALSE,                   # Ensure bins are closed on the left
+      include.lowest = TRUE,           # Include the lowest value in the first bin
+      labels = paste(seq(0, 490, by = 10), seq(9, 499, by = 10), sep = "-")
+    )
+  )
+
+# Step 2: Summarize by bins: Count number of practices in each bin for both Registered and Weighted
+finances_Practice_binned_summary <- finances_Practice_binned %>%
+  # Group by Registered Bin and Weighted Bin
+  group_by(`Registered Bin`, `Weighted Bin`) %>%
+  summarise(
+    Count_Registered_Practices = n_distinct(PRACTICE_CODE[!is.na(`Avg (Registered)`)]),  # Count distinct practices in Registered Bin
+    Count_Weighted_Practices = n_distinct(PRACTICE_CODE[!is.na(`Avg (Weighted)`)]),     # Count distinct practices in Weighted Bin
+    .groups = "drop"  # Drop the grouping after summarizing
+  )
+
+library(writexl)
+write_xlsx(finances_Practice_binned_summary, "Binned_Summary.xlsx")
+
 print(paymentVariation)
 
 

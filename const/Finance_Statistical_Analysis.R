@@ -32,51 +32,18 @@ finances_IMD_PRACTICE <- finances_GROUPED_TOTAL %>%
     .names = "{.col} {fn}"
   )) 
 
-# Summarizing data to calculate average payments for each IMD quintile
-finances_IMD_PRACTICE_avg <- finances_IMD_PRACTICE %>%
-  group_by(IMD_QUINTILE) %>%
-  summarise(
-    Global_Sum_Avg = mean(`Global_Sum Avg (Weighted)`, na.rm = TRUE),
-    IT_Premises_Avg = mean(`IT_Premises Avg (Weighted)`, na.rm = TRUE),
-    Other_And_PCOAdmin_Avg = mean(`Other_And_PCOAdmin Avg (Weighted)`, na.rm = TRUE),
-    Directed_Enhanced_Services_Avg = mean(`Directed_Enhanced_Services Avg (Weighted)`, na.rm = TRUE),
-    ACCESSANDTRANSFORMATION_Avg = mean(`ACCESSANDTRANSFORMATION Avg (Weighted)`, na.rm = TRUE),
-    Local_Incentive_Schemes_Avg = mean(`Local_Incentive_Schemes Avg (Weighted)`, na.rm = TRUE),
-    Prescribing_Avg = mean(`Prescribing Avg (Weighted)`, na.rm = TRUE),
-    Dispensing_Avg = mean(`Dispensing Avg (Weighted)`, na.rm = TRUE),
-    DrugReinbursement_Avg = mean(`DrugReinbursement Avg (Weighted)`, na.rm = TRUE),
-    QOF_Avg = mean(`QOF Avg (Weighted)`, na.rm = TRUE),
-    Deductions_Avg = mean(`Deductions Avg (Weighted)`, na.rm = TRUE),
-    PCNPARTICIPATION_Avg = mean(`PCNPARTICIPATION Avg (Weighted)`, na.rm = TRUE),
-    .groups = "drop"
-  )
-
-# Reshape the data to long format for plotting
-finances_IMD_PRACTICE_avg_long <- finances_IMD_PRACTICE_avg %>%
-  pivot_longer(
-    cols = starts_with("Global_Sum_Avg"):starts_with("PCNPARTICIPATION_Avg"),
-    names_to = "Payment_Category",
-    values_to = "Avg_Payment"
-  )
-
-# Create the horizontal bar chart
-ggplot(finances_IMD_PRACTICE_avg_long, aes(x = Avg_Payment, y = IMD_QUINTILE, fill = Payment_Category)) +
-  geom_bar(stat = "identity", position = "stack") +
-  labs(
-    x = "Average Payment per Registered Patient",
-    y = "IMD Quintile",
-    fill = "Payment Category",
-    title = "Average Payment per Category by IMD Quintile (Registered Patients)"
-  ) +
-  theme_minimal() +
-  theme(
-    axis.text.y = element_text(size = 10),  # Adjust Y axis text size for readability
-    axis.text.x = element_text(size = 10),  # Adjust X axis text size for better readability
-    axis.title.x = element_text(size = 12), # Size for x axis title
-    axis.title.y = element_text(size = 12), # Size for y axis title
-    legend.title = element_text(size = 12),
-    legend.text = element_text(size = 10)
-  )
+finances_IMD_PRACTICE <- finances_IMD_PRACTICE %>% filter( 
+  `Global_Sum Avg (Weighted)` >= 0, 
+  `Prescribing Avg (Weighted)` >= 0, 
+  `IT_Premises Avg (Weighted)` >= 0, 
+  `QOF Avg (Weighted)` >= 0, 
+  `Other_And_PCOAdmin Avg (Weighted)` >= 0, 
+  `Local_Incentive_Schemes Avg (Weighted)` >= 0, 
+  `Directed_Enhanced_Services Avg (Weighted)` >= 0, 
+  `Dispensing Avg (Weighted)` >= 0, 
+  `DrugReinbursement Avg (Weighted)` >= 0, 
+  `PCNPARTICIPATION Avg (Weighted)` >= 0, 
+  `ACCESSANDTRANSFORMATION Avg (Weighted)` >= 0 )
 
 #write_xlsx(finances_IMD_PRACTICE, "finances_IMD_PRACTICE.xlsx")
 
@@ -85,14 +52,7 @@ ggplot(finances_IMD_PRACTICE_avg_long, aes(x = Avg_Payment, y = IMD_QUINTILE, fi
     #`PCO_Payments Avg (Weighted)` = as.numeric(`PCO_Payments Avg (Weighted)`)  # Convert column to numeric
 #  )
 
-# Ensure no scientific notation is displayed
 options(scipen = 999)  # This makes R avoid scientific notation
-
-# If you need to format it manually without scientific notation
-finances_IMD_PRACTICE <- finances_IMD_PRACTICE %>%
-  mutate(
-    Prescribing_Weighted = format(PCO_Payments, scientific = FALSE)
-  )
 
 finances_IMD_PRACTICE$IMD_QUINTILE <- factor(finances_IMD_PRACTICE$IMD_QUINTILE,
                                              levels = c('5', '1', '2', '3', '4'))
@@ -104,6 +64,10 @@ QOF_Model <- lm(`QOF Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACT
 Other_And_PCOAdmin_Model <- lm(`Other_And_PCOAdmin Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
 LIS_Model <- lm(`Local_Incentive_Schemes Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
 DES_Model <- lm(`Directed_Enhanced_Services Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
+Dispensing_Model <- lm(`Dispensing Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
+DrugReinbursement <- lm(`DrugReinbursement Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
+PCNParticipation <- lm(`PCNPARTICIPATION Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
+AccessAndTransformation <- lm(`ACCESSANDTRANSFORMATION Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
 
 summary(Global_Sum_Model)
 summary(Presc_Model)
@@ -112,6 +76,14 @@ summary(QOF_Model)
 summary(Other_And_PCOAdmin_Model)
 summary(LIS_Model)
 summary(DES_Model)
+summary(Dispensing_Model)
+summary(DrugReinbursement)
+summary(PCNParticipation)
+summary(AccessAndTransformation)
+
+
+model <- glm( `Global_Sum Avg (Weighted)` ~ `IMD_QUINTILE`, family = quasipoisson(link = "identity"), data = finances_IMD_PRACTICE)
+summary(model)
 
 Global_Sum_Model_reg <- lm(`Global_Sum Avg (Registered)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
 Presc_Model_reg <- lm(`Prescribing Avg (Registered)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
@@ -130,15 +102,59 @@ summary(LIS_Model_reg)
 summary(DES_Model_reg)
 
 
+
+
 finance_imd_wide_regression <- finance_imd_wide_regression %>%
   mutate(
     Contract_Type = factor(Contract_Type),
     Dispensing_Practice = factor(Dispensing_Practice),
-    Practice_Rurality = factor(Practice_Rurality)
+    Practice_Rurality = factor(Practice_Rurality),
+    IMD_QUINTILE = factor(IMD_QUINTILE)
   )
 
-All_regression <- lm(`Average payments per registered patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + `Average Number of Registered Patients` + Pct_Over_65 + Pct_Male, data = finance_imd_wide_regression)
-summary(All_regression)
+finance_imd_wide_regression$IMD_QUINTILE <- factor(finance_imd_wide_regression$IMD_QUINTILE,
+                                             levels = c('5', '1', '2', '3', '4'))
 
+finance_imd_wide_regression$Practice_Rurality <- factor(finance_imd_wide_regression$Practice_Rurality,
+                                                   levels = c('Urban', 'Rural'))
+
+finance_imd_wide_regression$Contract_Type <- factor(finance_imd_wide_regression$Contract_Type,
+                                                        levels = c('GMS', 'APMS', "PMS"))
+
+#+ Contract_Type + Dispensing_Practice + Practice_Rurality + `Average Number of Registered Patients` + Pct_Over_65
+
+finance_imd_wide_regression <- finance_imd_wide_regression %>%
+  mutate(
+    # Grouping by the number of registered patients
+    Registered_Patient_Group = cut(
+      `Average Number of Registered Patients`,  # This is the column for grouping
+      breaks = c(0, 10000, 20000, 50000),      # Define the bins: 0-10,000, 10,001-20,000, 20,001-50,000
+      right = FALSE,                           # Ensure bins are closed on the left
+      include.lowest = TRUE,                   # Include the lowest value in the first bin
+      labels = c("0-10,000", "10,001-20,000", "20,001-50,000") # Assign labels for the bins
+    )
+  )
+
+finance_imd_wide_regression <- finance_imd_wide_regression %>%
+  mutate(
+    # Grouping by `Pct_Over_65`
+    Pct_Over_65_Group = cut(
+      Pct_Over_65,                           # This is the column for grouping
+      breaks = c(0, 10, 20, 30, 40, 55),     # Define the bins: 0-10%, 11-20%, 21-30%, 31-40%, 41-55%
+      right = FALSE,                         # Ensure bins are closed on the left
+      include.lowest = TRUE,                 # Include the lowest value in the first bin
+      labels = c("0-10%", "11-20%", "21-30%", "31-40%", "41-55%") # Assign labels for the bins
+    )
+  )
+
+All_regression_registered <- lm(`Average payments per registered patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + Registered_Patient_Group + Pct_Over_65_Group, data = finance_imd_wide_regression)
+summary(All_regression_registered)
+
+All_regression_weighted <- lm(`Average payments per weighted patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + Registered_Patient_Group + Pct_Over_65_Group, data = finance_imd_wide_regression)
+summary(All_regression_weighted)
+
+
+library(writexl)
+write_xlsx(finances_IMD_PRACTICE, "Practice.xlsx")
 
 
