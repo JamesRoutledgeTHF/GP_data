@@ -32,42 +32,65 @@ finances_IMD_PRACTICE <- finances_GROUPED_TOTAL %>%
     .names = "{.col} {fn}"
   )) 
 
-finances_IMD_PRACTICE <- finances_IMD_PRACTICE %>% filter( 
-  `Global_Sum Avg (Weighted)` >= 0, 
-  `Prescribing Avg (Weighted)` >= 0, 
-  `IT_Premises Avg (Weighted)` >= 0, 
-  `QOF Avg (Weighted)` >= 0, 
-  `Other_And_PCOAdmin Avg (Weighted)` >= 0, 
-  `Local_Incentive_Schemes Avg (Weighted)` >= 0, 
-  `Directed_Enhanced_Services Avg (Weighted)` >= 0, 
-  `Dispensing Avg (Weighted)` >= 0, 
-  `DrugReinbursement Avg (Weighted)` >= 0, 
-  `PCNPARTICIPATION Avg (Weighted)` >= 0, 
-  `ACCESSANDTRANSFORMATION Avg (Weighted)` >= 0 )
-
-#write_xlsx(finances_IMD_PRACTICE, "finances_IMD_PRACTICE.xlsx")
-
-#finances_IMD_PRACTICE <- finances_IMD_PRACTICE %>%
- # mutate(
-    #`PCO_Payments Avg (Weighted)` = as.numeric(`PCO_Payments Avg (Weighted)`)  # Convert column to numeric
-#  )
-
-options(scipen = 999)  # This makes R avoid scientific notation
-
 finances_IMD_PRACTICE$IMD_QUINTILE <- factor(finances_IMD_PRACTICE$IMD_QUINTILE,
                                              levels = c('5', '1', '2', '3', '4'))
 
-Global_Sum_Model <- lm(`Global_Sum Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
+finances_IMD_PRACTICE_Global_Weight <- finances_IMD_PRACTICE %>% filter( 
+  `Global_Sum Avg (Weighted)` >= 0)
+
+finances_IMD_PRACTICE_prescribing <- finances_IMD_PRACTICE %>% filter( 
+  `Prescribing Avg (Weighted)` >= 0, 
+)
+
+finances_IMD_PRACTICE_IT_Premises <- finances_IMD_PRACTICE %>% filter( 
+  `IT_Premises Avg (Weighted)` >= 0, 
+)
+
+finances_IMD_PRACTICE_Other_And_PCOAdmin <- finances_IMD_PRACTICE %>% filter( 
+  `Other_And_PCOAdmin Avg (Weighted)` >= 0, 
+)
+
+finances_IMD_PRACTICE_LIS <- finances_IMD_PRACTICE %>% filter( 
+  `Local_Incentive_Schemes Avg (Weighted)` >= 0, 
+)
+
+finances_IMD_PRACTICE_DES <- finances_IMD_PRACTICE %>% filter( 
+  `Directed_Enhanced_Services Avg (Weighted)` >= 0, 
+)
+
+finances_IMD_PRACTICE_DrugReinbursement <- finances_IMD_PRACTICE %>% filter( 
+  `DrugReinbursement Avg (Weighted)` >= 0, 
+)
+
+finances_IMD_PRACTICE_PCNParticipation <- finances_IMD_PRACTICE %>% filter( 
+  `PCNPARTICIPATION Avg (Weighted)` >= 0, 
+)
+
+finances_IMD_PRACTICE_QOF <- finances_IMD_PRACTICE %>% filter( 
+  `PCNPARTICIPATION Avg (Weighted)` >= 0, 
+)
+
+finances_IMD_PRACTICE_ACCESS_TRANSFORMATION <- finances_IMD_PRACTICE %>% filter( 
+  `ACCESSANDTRANSFORMATION Avg (Weighted)` >= 0, 
+)
+
+finances_IMD_PRACTICE_Dispensing <- finances_IMD_PRACTICE %>% filter( 
+  `Dispensing Avg (Weighted)` >= 0, 
+)
+
+options(scipen = 0)  # This makes R avoid scientific notation
+
+Global_Sum_Model <- lm(`Global_Sum Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE_Global_Weight)
 Presc_Model <- lm(`Prescribing Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
-IT_Model <- lm(`IT_Premises Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
-QOF_Model <- lm(`QOF Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
-Other_And_PCOAdmin_Model <- lm(`Other_And_PCOAdmin Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
-LIS_Model <- lm(`Local_Incentive_Schemes Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
-DES_Model <- lm(`Directed_Enhanced_Services Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
+IT_Model <- lm(`IT_Premises Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE_IT_Premises)
+QOF_Model <- lm(`QOF Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE_QOF)
+Other_And_PCOAdmin_Model <- lm(`Other_And_PCOAdmin Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE_Other_And_PCOAdmin)
+LIS_Model <- lm(`Local_Incentive_Schemes Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE_LIS)
+DES_Model <- lm(`Directed_Enhanced_Services Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE_DES)
 Dispensing_Model <- lm(`Dispensing Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
-DrugReinbursement <- lm(`DrugReinbursement Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
-PCNParticipation <- lm(`PCNPARTICIPATION Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
-AccessAndTransformation <- lm(`ACCESSANDTRANSFORMATION Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
+DrugReinbursement <- lm(`DrugReinbursement Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE_DrugReinbursement)
+PCNParticipation <- lm(`PCNPARTICIPATION Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE_PCNParticipation)
+AccessAndTransformation <- lm(`ACCESSANDTRANSFORMATION Avg (Weighted)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE_ACCESS_TRANSFORMATION)
 
 summary(Global_Sum_Model)
 summary(Presc_Model)
@@ -83,6 +106,8 @@ summary(AccessAndTransformation)
 
 
 model <- glm( `Global_Sum Avg (Weighted)` ~ `IMD_QUINTILE`, family = quasipoisson(link = "identity"), data = finances_IMD_PRACTICE)
+model_gamma <- glm( `Global_Sum Avg (Weighted)` ~ `IMD_QUINTILE`, family = Gamma(link = "identity"), data = finances_IMD_PRACTICE)
+
 summary(model)
 
 Global_Sum_Model_reg <- lm(`Global_Sum Avg (Registered)` ~ `IMD_QUINTILE`, data = finances_IMD_PRACTICE)
@@ -111,6 +136,11 @@ finance_imd_wide_regression <- finance_imd_wide_regression %>%
     Practice_Rurality = factor(Practice_Rurality),
     IMD_QUINTILE = factor(IMD_QUINTILE)
   )
+
+finance_imd_wide_regression <- finance_imd_wide_regression %>%
+  group_by(YEAR, Practice_Code) %>%
+  filter(any(`Average payments per registered patient` >= 0)) %>%
+  ungroup()
 
 finance_imd_wide_regression$IMD_QUINTILE <- factor(finance_imd_wide_regression$IMD_QUINTILE,
                                              levels = c('5', '1', '2', '3', '4'))
@@ -147,14 +177,60 @@ finance_imd_wide_regression <- finance_imd_wide_regression %>%
     )
   )
 
-All_regression_registered <- lm(`Average payments per registered patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + Registered_Patient_Group + Pct_Over_65_Group, data = finance_imd_wide_regression)
+
+finance_imd_wide_regression <- finance_imd_wide_regression %>%
+  inner_join(GPPS_Datasets %>%
+               select(Practice_Code, Field_Name, Field_Value), 
+             by = "Practice_Code") 
+
+finance_imd_wide_regression <- finance_imd_wide_regression %>%
+  filter(Field_Value >= 0)  # Remove rows where Field_Value is less than 0
+
+finance_imd_wide_regression <- finance_imd_wide_regression %>%
+  inner_join(CQC_Datasets_joined %>%
+               select(odsCode, ownershipType), 
+             by = c("Practice_Code" = "odsCode"))
+
+
+finance_imd_wide_regression <- finance_imd_wide_regression %>%
+  mutate(
+    # Grouping by `Field_Value`
+    Field_Value = cut(
+      Field_Value,                           # This is the column for grouping
+      breaks = c(0, 0.25, 0.50, 0.75, 1.00),     # Define the bins: 0-10%, 11-20%, 21-30%, 31-40%, 41-55%
+      right = FALSE,                         # Ensure bins are closed on the left
+      include.lowest = TRUE,                 # Include the lowest value in the first bin
+      labels = c("0-25%", "26-50%", "51-75%", "76-100%") # Assign labels for the bins
+    )
+  )
+
+finance_imd_wide_regression$ownershipType <- factor(finance_imd_wide_regression$ownershipType,
+                                                    levels = c('Partnership', 'Individual', "Organisation", "NHS Body"))
+
+finance_imd_wide_regression$Field_Value <- factor(finance_imd_wide_regression$Field_Value,
+                                                    levels = c('26-50%', '51-75%', "76-100%", "0-25%"))
+#removed_rows <- finance_imd_wide_regression %>%
+#  left_join(CQC_Datasets_joined %>%
+       #       select(odsCode, ownershipType), 
+          #  by = c("Practice_Code" = "odsCode")) %>%
+  #filter(is.na(ownershipType))  # Filter rows where no match was found (ownershipType is NA)
+
+#also join the GPPS data onto the dataset..
+
+All_regression_registered <- lm(`Average payments per registered patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + Registered_Patient_Group + Pct_Over_65_Group + Field_Value + ownershipType, data = finance_imd_wide_regression)
 summary(All_regression_registered)
 
-All_regression_weighted <- lm(`Average payments per weighted patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + Registered_Patient_Group + Pct_Over_65_Group, data = finance_imd_wide_regression)
+All_regression_weighted <- lm(`Average payments per weighted patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + Registered_Patient_Group + Pct_Over_65_Group + Field_Value + ownershipType, data = finance_imd_wide_regression)
 summary(All_regression_weighted)
 
 
 library(writexl)
 write_xlsx(finances_IMD_PRACTICE, "Practice.xlsx")
+
+# Check the levels of each factor variable in the dataset
+sapply(finance_imd_wide_regression[, c("IMD_QUINTILE", "Contract_Type", "Dispensing_Practice", 
+                                       "Practice_Rurality", "Registered_Patient_Group", 
+                                       "Pct_Over_65_Group", "Field_Value", "ownershipType")], 
+       function(x) length(unique(x)))
 
 

@@ -1,0 +1,1268 @@
+---
+title: "GP_PaymentGraps_SQL"
+output: html_document
+---
+
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(
+  fig.width = 12,
+  fig.height = 5,
+  dpi = 300
+)
+
+```
+
+```{R load_imd}
+library(tidyverse)
+library(dplyr)
+
+# First, create a list of relevant metrics to check
+relevant_metrics <- c("Average Number of Registered Patients", 
+                      "Number of Registered Patients (Last Known Figure)", 
+                      "Average number of registered patients1")
+
+# Filter the dataset to only check values for the relevant metrics
+filtered_for_metrics <- finance_datasets %>%
+  filter(Metric %in% relevant_metrics) %>%
+  group_by(YEAR, Practice_Code) %>%
+  filter(any(Metric_Value < 1000)) %>%
+  ungroup()
+
+# Now, exclude those practice codes (based on the YEAR and Practice_Code) that have any value < 1000
+finance_datasets <- finance_datasets %>%
+  anti_join(filtered_for_metrics, by = c("YEAR", "Practice_Code"))
+
+outliers_005pct <- finance_datasets %>%
+  filter(Metric %in% relevant_metrics) %>%
+  group_by(YEAR) %>%
+  mutate(
+    p005 = quantile(Metric_Value, 0.005, na.rm = TRUE),
+    p995 = quantile(Metric_Value, 0.995, na.rm = TRUE)
+  ) %>%
+  ungroup() %>%
+  filter(Metric_Value <= p005 | Metric_Value >= p995) %>%
+  distinct(YEAR, Practice_Code)
+
+finance_datasets <- finance_datasets %>%
+  anti_join(outliers_005pct, by = c("YEAR", "Practice_Code"))
+
+
+finance_imd_wide <- finance_datasets %>%
+  pivot_wider(
+    names_from = Metric, 
+    values_from = Metric_Value
+  )
+
+# Define the columns to rename
+columns <- list(
+  PRACTICE_CODE = "Practice_Code",
+  WEIGHTED_PATIENTS = c("Average Number of Weighted Patients", 
+                        "Number of Weighted Patients (Last Known Figure)",
+                        "Average number of weighted patients1"),
+  REGISTERED_PATIENTS = c("Average Number of Registered Patients", 
+                          "Number of Registered Patients (Last Known Figure)",
+                          "Average number of registered patients1"),
+  PAYMENTS = "Total NHS Payments to General Practice",
+  PAYMENTS_MINUS_DEDUCTIONS = c("Total NHS Payments to General Practice Minus Deductions",
+                                "Total NHS Payments to General Practice Minus Deductions2")
+)
+
+# Rename columns in the dataframe
+finance_imd_wide_renamed <- finance_imd_wide %>%
+  rename( PRACTICE_CODE = "Practice_Code")%>%
+  mutate(
+    WEIGHTED_PATIENTS = rowSums(select(., all_of(columns$WEIGHTED_PATIENTS)), na.rm = TRUE),
+    REGISTERED_PATIENTS = rowSums(select(., all_of(columns$REGISTERED_PATIENTS)), na.rm = TRUE),
+    PAYMENTS = select(., columns$PAYMENTS) %>% unlist(),
+    PAYMENTS_MINUS_DEDUCTIONS = rowSums(select(., all_of(columns$PAYMENTS_MINUS_DEDUCTIONS)), na.rm = TRUE)
+  ) %>%
+  select(-all_of(columns$WEIGHTED_PATIENTS), # Remove old columns after combining
+         -all_of(columns$REGISTERED_PATIENTS),
+         -all_of(columns$PAYMENTS_MINUS_DEDUCTIONS)) # Remove old payment columns
+
+# View the renamed dataframe
+#print(finance_datasets_renamed)
+
+finance_imd_weighted <- finance_imd_wide_renamed %>%
+  left_join(prac_imd, by = c("YEAR", "PRACTICE_CODE")) %>%
+  mutate(IMD_QUINTILE = as.factor(IMD_QUINTILE)) %>%
+    group_by(IMD_QUINTILE, YEAR) %>%
+  summarise(
+    TOTAL_PAYMENTS = sum(PAYMENTS_MINUS_DEDUCTIONS, na.rm = TRUE),
+    TOTAL_WEIGHTED = sum(WEIGHTED_PATIENTS, na.rm = TRUE),
+    NUM_PRACTICES = n_distinct(PRACTICE_CODE)
+  ) %>%
+  mutate(PAYMENT_PER_WEIGHTED_PATIENT = TOTAL_PAYMENTS / TOTAL_WEIGHTED) %>%
+    na.omit()
+
+finance_imd_registered <- finance_imd_wide_renamed %>%
+  left_join(prac_imd, by = c("YEAR", "PRACTICE_CODE")) %>%
+  mutate(IMD_QUINTILE = as.factor(IMD_QUINTILE)) %>%
+    group_by(IMD_QUINTILE, YEAR) %>%
+  summarise(
+    TOTAL_PAYMENTS = sum(PAYMENTS_MINUS_DEDUCTIONS, na.rm = TRUE),
+    TOTAL_REGISTERED = sum(REGISTERED_PATIENTS, na.rm = TRUE),
+    NUM_PRACTICES = n_distinct(PRACTICE_CODE)
+  ) %>%
+  mutate(PAYMENT_PER_REGISTERED_PATIENT = TOTAL_PAYMENTS / TOTAL_REGISTERED) %>%
+    na.omit()
+
+grouped_sum <- finance_imd_weighted %>%
+  group_by(YEAR) %>%
+  summarise(
+    TOTAL_PAYMENTS = sum(TOTAL_PAYMENTS, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+library(ggplot2)
+
+Weighted_By_Year <- ggplot(finance_imd_weighted, aes(
+  x = YEAR,
+  y = PAYMENT_PER_WEIGHTED_PATIENT,
+  color = as.factor(IMD_QUINTILE),
+  group = IMD_QUINTILE
+  )) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_brewer(palette = "Set1", name = "IMD Quintile") +
+  #scale_x_continuous(
+  #  breaks = sort(unique(finance_imd_weighted$YEAR)),  
+  #  labels = sort(unique(finance_imd_weighted$YEAR))
+ # ) +
+  labs(
+    title = "Payments per Weighted Patient by IMD Quintile",
+    x = "Year",
+    y = "Payment per Weighted Patient (£)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold")
+  )
+
+registered_by_year <- ggplot(finance_imd_registered, aes(
+  x = YEAR,
+  y = PAYMENT_PER_REGISTERED_PATIENT,
+  color = as.factor(IMD_QUINTILE),
+  group = IMD_QUINTILE
+  )) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_brewer(palette = "Set1", name = "IMD Quintile") +
+  #scale_x_continuous(
+  #  breaks = sort(unique(finance_imd_registered$YEAR)),  
+  #  labels = sort(unique(finance_imd_registered$YEAR))
+ # ) +
+  labs(
+    title = "Payments per Weighted Patient by IMD Quintile",
+    x = "Year",
+    y = "Payment per Weighted Patient (£)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold")
+  )
+
+
+finances_df_barchart <- finance_datasets %>%
+  filter(YEAR == "2023")%>%
+  pivot_wider(
+    names_from = Metric, 
+    values_from = Metric_Value
+  ) 
+
+columns_barplot <- list(
+    PRACTICE_CODE = "Practice_Code",
+    CONTRACT_TYPE = "Contract_Type",
+    WEIGHTED_PATIENTS = "Average Number of Weighted Patients", 
+    REGISTERED_PATIENTS = "Average Number of Registered Patients",
+    PAYMENTS_MINUS_DEDUCTIONS = "Total NHS Payments to General Practice Minus Deductions",
+    PAYMENTS = "Total NHS Payments to General Practice",
+    TOTAL_COVID_PAYMENTS = "Total NHS Payments to General Practice including covid vaccination, covid support and long covid payments",
+    PRESCRIBING_FEE = "Prescribing Fee Payments",
+    DISPENSING_FEE = "Dispensing Fee Payments",
+    REINBURSMENT_FEE = "Reimbursement of Drugs",
+    OTHER_PAYMENTS = "Other Payments",
+    GLOBAL_SUM = "Global Sum",
+    MPIG = "MPIG Correction factor",
+    IT = "Information Management and Technology",
+    PMS_BALANCE = "Balance of PMS Expenditure",
+    QOF_PAYMENT = "Total QOF Payments",
+    CHILD_VACCINE = "Childhood Vaccination and Immunisation Scheme",
+    FLU_VACCINE = "Influenza and Pneumococcal Immunisations",
+    ROTAVIRUS_VACCINE = "Rotavirus and Shingles Immunisation",
+    PREMISES_PAYMENT = "Premises Payments",
+    COVID_IMMUN = "Covid Immunisation",
+    COVID_SUPPORT = "Covid Support and Expansion",
+    LONG_COVID = "Long Covid",
+    GP_EXTENDED = "GP Extended Hours Access",
+    LD = "Learning Disabilities",
+    MS = "Minor Surgery",
+    SFVP = "Services for Violent Patients",
+    NDES = "Non DES Item Pneumococcal Vaccine, Childhood Immunisation Main Programme",
+    OOAIHUC = "Out Of Area in Hours Urgent Care",
+    MENINGITIS = "Meningitis",
+    PERTUSSIS = "Pertussis",
+    LIS = "Local Incentive Schemes",
+    WMS = "Weight Management Service",
+    MAR = "Medical Assessment Reviews",
+    SENIORITY = "Seniority",
+    DRSP = "Doctors Retainer Scheme Payments",
+    TLA = "Total Locum Allowances",
+    PCO = "PCO Admin Other",
+    GPT = "General Practice Transformation",
+    WAF = "winter Access Fund",
+    PSL = "Prolonged Study Leave",
+    AACIRL = "Appraisal - Appraiser Costs in Respect of Locums",
+    PCNP = "PCN Participation",
+    DEDUCTIONS = "Deductions for Pensions, Levies and Prescription Charge Income"
+)
+
+finances_df_barchart <- finances_df_barchart %>%
+  rename(!!!columns_barplot)
+
+globalSum <- c("GLOBAL_SUM", "MPIG", "PMS_BALANCE")
+
+ITPremises <- c("PREMISES_PAYMENT", "IT")
+
+OtherAndPCOAdmin <- c(
+  "SENIORITY", "DRSP", "TLA", "PCO", "OTHER_PAYMENTS", "PSL", "AACIRL"
+)
+
+PCNParticipation <- c("PCNP")
+
+QOF <- c("QOF_PAYMENT")
+
+DirectedEnhancedServices <- c(
+  "CHILD_VACCINE", "FLU_VACCINE", "LD",
+  "MS", "ROTAVIRUS_VACCINE", "SFVP", "OOAIHUC", "MENINGITIS", "PERTUSSIS", "WMS", "MAR"
+)
+
+LocalIncentiveSchemes <- c(
+  "LIS"
+)
+
+AccessAndTransFormation <- c("GPT", "WAF", "GP_EXTENDED")
+
+#remove from quintiles
+COVID <- c("COVID_IMMUN", "COVID_SUPPORT", "LONG_COVID")
+
+PrescribingFee <- c("PRESCRIBING_FEE")
+
+Dispensing <- c("DISPENSING_FEE")
+
+DrugReinbursement <- c("REINBURSMENT_FEE")
+
+Deductions <- c("DEDUCTIONS")
+
+#ensure covid columns are numeric
+finances_df_barchart <- finances_df_barchart %>%
+  mutate(across(any_of(LocalIncentiveSchemes), as.numeric))
+
+#calculate grouped totals 
+finances_GROUPED_TOTAL <- finances_df_barchart %>%
+  mutate(
+    Total.Global.Sum          = rowSums(across(all_of(globalSum)), na.rm = TRUE),
+    Total.COVID          = rowSums(across(all_of(COVID)), na.rm = TRUE),
+    Total.IT.Premises         = rowSums(across(all_of(ITPremises)), na.rm = TRUE),
+    Total.OtherAndPCOAdmin   = rowSums(across(all_of(OtherAndPCOAdmin)), na.rm = TRUE),
+    Total.DirectedEnhancedServices = rowSums(across(all_of(DirectedEnhancedServices)), na.rm = TRUE),
+    Total.AccessAndTransFormation = rowSums(across(all_of(AccessAndTransFormation)), na.rm = TRUE)
+  )
+
+#join IMD onto and then group by year and imd, add the avg registered and weighted columns for each group as well 
+finances_IMD_TOTAL <- finances_GROUPED_TOTAL %>%
+  left_join(prac_imd, by = c("YEAR", "PRACTICE_CODE")) %>%
+  filter(!is.na(IMD_QUINTILE)) %>%
+  mutate(IMD_QUINTILE = as.factor(IMD_QUINTILE)) %>%
+  group_by(IMD_QUINTILE, YEAR) %>%
+  summarise(
+    Global_Sum          = sum(Total.Global.Sum, na.rm = TRUE),
+    IT_Premises         = sum(Total.IT.Premises, na.rm = TRUE),
+    Other_And_PCOAdmin  = sum(Total.OtherAndPCOAdmin, na.rm = TRUE),
+    Directed_Enhanced_Services = sum(Total.DirectedEnhancedServices, na.rm = TRUE),
+    ACCESSANDTRANSFORMATION = sum(Total.AccessAndTransFormation, na.rm = TRUE),
+    Local_Incentive_Schemes = sum(LIS, na.rm = TRUE),
+    Prescribing         = sum(PRESCRIBING_FEE, na.rm = TRUE),
+    Dispensing          = sum(DISPENSING_FEE, na.rm = TRUE),
+    DrugReinbursement   = sum(REINBURSMENT_FEE, na.rm = TRUE),
+    QOF                 = sum(QOF_PAYMENT, na.rm = TRUE),
+    Deductions          = sum(DEDUCTIONS, na.rm = TRUE),
+    PCNPARTICIPATION          = sum(PCNP, na.rm = TRUE),
+    REGISTERED          = sum(REGISTERED_PATIENTS, na.rm = TRUE),
+    WEIGHTED            = sum(WEIGHTED_PATIENTS, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+ # mutate(Deductions = abs(Deductions)) %>%  # Convert Deductions to positive
+  mutate(across(
+    c(Global_Sum, IT_Premises, Other_And_PCOAdmin, Directed_Enhanced_Services, Local_Incentive_Schemes, Prescribing, Dispensing, DrugReinbursement, QOF, Deductions, PCNPARTICIPATION, ACCESSANDTRANSFORMATION),
+    list(
+      "Avg (Registered)" = ~ . / REGISTERED,
+      "Avg (Weighted)"   = ~ . / WEIGHTED
+    ),
+    .names = "{.col} {fn}"
+  ))
+
+#pivot long
+finances_IMD_TOTAL <- finances_IMD_TOTAL %>%
+  pivot_longer(
+    cols = -c(IMD_QUINTILE, YEAR),
+    names_to = "Payment Category",
+    values_to = "Total (£)"
+  )
+
+
+#create a uniform payment category column
+finances_IMD_TOTAL <- finances_IMD_TOTAL %>%
+  mutate(
+    PayCat_base = str_trim(
+      str_remove(`Payment Category`,
+                 regex("\\((Registered|Weighted|ADJ)\\)$", ignore_case = TRUE))
+    )
+  )
+
+#order levels for barplots
+ordered_levels_avg <- rev(c(
+  "Global_Sum Avg",
+  "IT_Premises Avg",
+  "QOF Avg",
+  "Local_Incentive_Schemes Avg",
+  "Directed_Enhanced_Services Avg",
+  "ACCESSANDTRANSFORMATION Avg",
+  "PCNPARTICIPATION Avg",
+ # "COVID_19 Avg",
+  "Other_And_PCOAdmin Avg",
+  "Prescribing Avg",
+  "Dispensing Avg",
+  "DrugReinbursement Avg",
+  "Deductions Avg"
+))
+
+ordered_levels_sum <- rev(c(
+   "Global_Sum",
+  "IT_Premises",
+  "QOF",
+  "Local_Incentive_Schemes",
+  "Directed_Enhanced_Services",
+  "ACCESSANDTRANSFORMATION",
+  "PCNPARTICIPATION",
+ # "COVID_19 Avg",
+  "Other_And_PCOAdmin",
+  "Prescribing",
+  "Dispensing",
+  "DrugReinbursement",
+  "Deductions"
+))
+
+Total_Finance_Categories <- finances_IMD_TOTAL %>%
+  mutate(
+    PayCat_base = factor(PayCat_base, levels = ordered_levels_sum)
+  )
+
+Avg_Finance_Categories <- finances_IMD_TOTAL %>%
+  mutate(
+    PayCat_base = factor(PayCat_base, levels = ordered_levels_avg)
+  )
+
+Weighted_By_Year <- ggplot(finance_imd_weighted, aes(
+  x = YEAR,
+  y = PAYMENT_PER_WEIGHTED_PATIENT,
+  color = as.factor(IMD_QUINTILE),
+  group = IMD_QUINTILE
+  )) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_brewer(palette = "Set1", name = "IMD Quintile") +
+ # scale_x_continuous(
+ #   breaks = sort(unique(finance_imd_weighted$YEAR)),  
+ #   labels = sort(unique(finance_imd_weighted$YEAR))
+ # ) +
+  labs(
+    title = "Payments per Weighted Patient by IMD Quintile",
+    x = "Year",
+    y = "Payment per Weighted Patient (£)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold")
+  )
+
+Registered_By_Year <- ggplot(finance_imd_registered, aes(
+  x = YEAR,
+  y = PAYMENT_PER_REGISTERED_PATIENT,
+  color = as.factor(IMD_QUINTILE),
+  group = IMD_QUINTILE
+)) +
+  geom_line(linewidth = 1) +
+  geom_point(size = 2) +
+  scale_color_brewer(palette = "Set1", name = "IMD Quintile") +
+  #scale_x_continuous(
+  #  breaks = sort(unique(finance_imd_registered$YEAR)),  
+  #  labels = sort(unique(finance_imd_registered$YEAR))
+  #) +
+  labs(
+    title = "Payments per Registered Patient by IMD Quintile",
+    x = "Year",
+    y = "Payment per Registered Patient (£)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    strip.text = element_text(face = "bold")
+  )
+
+
+Total_Finance_Categories <- Total_Finance_Categories %>%
+  filter(
+    YEAR == 2023,
+    !is.na(IMD_QUINTILE),
+    !grepl("\\(Registered\\)|\\(Weighted\\)|\\(ADJ\\)", `Payment Category`, ignore.case = TRUE),
+    !grepl("REGISTERED|WEIGHTED|adj_population|Total Population", `Payment Category`, ignore.case = TRUE)
+  ) %>%
+  group_by(`Payment Category`) %>%
+  mutate(total_cat = sum(`Total (£)`, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(PayCat_base = factor(PayCat_base, levels = ordered_levels_sum)) %>%
+  group_by(IMD_QUINTILE) %>%
+  mutate(
+    group_total = sum(`Total (£)`),
+    pct = `Total (£)` / group_total,
+    label_text = paste0(
+  scales::percent(pct, accuracy = 1),
+  " (",
+  scales::label_number(
+    accuracy = 0.1,          
+    scale = 1e-6,            
+    suffix = "m"
+  )(`Total (£)`),
+  ")"
+)
+  ) %>%
+  ungroup()
+
+Barchart_Total_Payments_By_Categories <- ggplot(Total_Finance_Categories, aes(
+  x = `Total (£)`,
+  y = as.factor(IMD_QUINTILE),
+  fill =  PayCat_base
+)) +
+  geom_bar(stat = "identity") +
+  geom_text(
+   aes(label = paste0(
+      scales::percent(pct, accuracy = 1),  # Percentage (50%)
+      "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
+    )),
+    size = 1.8,
+    position = position_stack(vjust = 0.5),
+    hjust = 0.5
+  ) +
+ # scale_x_continuous(labels = scales::comma)+
+  labs(
+    title = "Total NHS Payments by IMD Quintile (2023)",
+    x = "IMD Quintile (1 = Most Deprived, 5 = Least Deprived)",
+    y = "Total Payments (£)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 12)
+  )
+
+Registered_Patients_Finance_Categories <- Avg_Finance_Categories %>%
+  filter(
+    YEAR == 2023,
+    grepl("\\(Registered\\)$", `Payment Category`),  
+    !is.na(IMD_QUINTILE)
+  ) %>%
+  mutate(PayCat_base = factor(PayCat_base, levels = ordered_levels_avg)) %>%
+  group_by(IMD_QUINTILE) %>%
+  mutate(
+    group_total = sum(`Total (£)`),
+    pct = `Total (£)` / group_total,
+    label_text = paste0(
+      scales::percent(pct, accuracy = 1), 
+      " (", scales::comma(`Total (£)`, accuracy = 0.1), ")"
+    )
+  ) %>%
+  ungroup()
+
+Barchart_Registered_Patients_By_Categories <- ggplot(Registered_Patients_Finance_Categories, aes(
+  x = `Total (£)`,
+  y = IMD_QUINTILE,
+  fill =  PayCat_base
+)) +
+  geom_bar(stat = "identity") +
+  geom_text(
+   aes(label = paste0(
+      scales::percent(pct, accuracy = 1),  # Percentage (50%)
+      "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
+    )),
+    size = 1.8,
+    position = position_stack(vjust = 0.5),
+    hjust = 0.5
+  ) +
+  labs(
+    title = "Average NHS Payments per Registered Patient by IMD Quintile (2023)",
+    x = "IMD Quintile (1 = Most Deprived, 5 = Least Deprived)",
+    y = "Average Payment per Registered Patient (£)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 12)
+  )
+
+Weighted_Patients_Finance_Categories <- Avg_Finance_Categories %>%
+  filter(
+    YEAR == 2023,
+    grepl("\\(Weighted\\)$", `Payment Category`),
+    !is.na(IMD_QUINTILE)
+  ) %>%
+  mutate(PayCat_base = factor(PayCat_base, levels = ordered_levels_avg)) %>%
+  group_by(IMD_QUINTILE) %>%
+  mutate(
+    group_total = sum(`Total (£)`),
+    pct = `Total (£)` / group_total,
+    label_text = paste0(
+      scales::percent(pct, accuracy = 1), 
+      " (", scales::comma(`Total (£)`, accuracy = 0.1), ")"
+    )
+  ) %>%
+  ungroup()
+
+Barchart_Weighted_Patients_By_Categories <- ggplot(
+  Weighted_Patients_Finance_Categories,
+  aes(
+    x = `Total (£)`,
+    y = as.factor(IMD_QUINTILE),
+    fill = PayCat_base
+  )
+) +
+  geom_bar(stat = "identity") +
+  geom_text(
+   aes(label = paste0(
+      scales::percent(pct, accuracy = 1),  # Percentage (50%)
+      "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
+    )),
+    size = 1.8,
+    position = position_stack(vjust = 0.5),
+    hjust = 0.5
+  ) +
+  labs(
+    title = "Average NHS Payments per Weighted Patient by IMD Quintile (2023)",
+    x = "IMD Quintile (1 = Most Deprived, 5 = Least Deprived)",
+    y = "Average Payment per Weighted Patient (£)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 12)
+  )
+
+
+#For ease to print into a PDF cleanly
+# Create a list of all plots
+plot_list <- list(
+  Weighted_By_Year,
+  Registered_By_Year,
+ # Adj_By_Year,
+  Barchart_Total_Payments_By_Categories,
+  Barchart_Registered_Patients_By_Categories,
+  Barchart_Weighted_Patients_By_Categories
+  #Barchart_Adj_Patients_By_Categories
+)
+
+
+# Export all plots to a single PDF
+pdf("All_NHS_IMD_Plots_Combined.pdf", width = 10, height = 6)
+
+for (p in plot_list) {
+  print(p)
+}
+
+dev.off()
+
+message("Saved PDF")
+
+
+
+
+#join IMD onto and then group by year and imd, add the avg registered and weighted columns for each group as well 
+finances_IMD_Over65 <- finances_GROUPED_TOTAL %>%
+  left_join(Over65_quintile, by = c("YEAR", "PRACTICE_CODE")) %>%
+  filter(!is.na(Over65_quintile)) %>%
+  mutate(Over65_quintile = as.factor(Over65_quintile)) %>%
+  group_by(Over65_quintile, YEAR) %>%
+  summarise(
+    Global_Sum          = sum(Total.Global.Sum, na.rm = TRUE),
+    IT_Premises         = sum(Total.IT.Premises, na.rm = TRUE),
+    Other_And_PCOAdmin  = sum(Total.OtherAndPCOAdmin, na.rm = TRUE),
+    Directed_Enhanced_Services = sum(Total.DirectedEnhancedServices, na.rm = TRUE),
+    Local_Incentive_Schemes = sum(LIS, na.rm = TRUE),
+    Prescribing         = sum(PRESCRIBING_FEE, na.rm = TRUE),
+    Dispensing         = sum(DISPENSING_FEE, na.rm = TRUE),
+    DrugReinbursement         = sum(REINBURSMENT_FEE, na.rm = TRUE),
+    QOF                 = sum(QOF_PAYMENT, na.rm = TRUE),
+    Deductions                 = sum(DEDUCTIONS, na.rm = TRUE),
+    REGISTERED          = sum(REGISTERED_PATIENTS, na.rm = TRUE),
+    REGISTERED          = sum(REGISTERED_PATIENTS, na.rm = TRUE),
+    WEIGHTED            = sum(WEIGHTED_PATIENTS, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(across(
+    c(Global_Sum, IT_Premises, Other_And_PCOAdmin, Directed_Enhanced_Services, Local_Incentive_Schemes, Prescribing, Dispensing, DrugReinbursement,  QOF, Deductions),
+    list(
+      "Avg (Registered)" = ~ . / REGISTERED,
+      "Avg (Weighted)"   = ~ . / WEIGHTED
+    ),
+    .names = "{.col} {fn}"
+  ))
+
+#pivot long
+finances_IMD_Over65 <- finances_IMD_Over65 %>%
+  pivot_longer(
+    cols = -c(Over65_quintile, YEAR),
+    names_to = "Payment Category",
+    values_to = "Total (£)"
+  )
+
+
+#create a uniform payment category column
+finances_IMD_Over65 <- finances_IMD_Over65 %>%
+  mutate(
+    PayCat_base = str_trim(
+      str_remove(`Payment Category`,
+                 regex("\\((Registered|Weighted|ADJ)\\)$", ignore_case = TRUE))
+    )
+  )
+
+Total_Finance_Categories_over65 <- finances_IMD_Over65 %>%
+  mutate(
+    PayCat_base = factor(PayCat_base, levels = ordered_levels_sum)
+  )
+
+Avg_Finance_Categories_over65 <- finances_IMD_Over65 %>%
+  mutate(
+    PayCat_base = factor(PayCat_base, levels = ordered_levels_avg)
+  )
+
+Total_Finance_Categories_over65 <- Total_Finance_Categories_over65 %>%
+  filter(
+    YEAR == 2023,
+    !is.na(Over65_quintile),
+    !grepl("\\(Registered\\)|\\(Weighted\\)|\\(ADJ\\)", `Payment Category`, ignore.case = TRUE),
+    !grepl("REGISTERED|WEIGHTED|adj_population|Total Population", `Payment Category`, ignore.case = TRUE)
+  ) %>%
+  group_by(`Payment Category`) %>%
+  mutate(total_cat = sum(`Total (£)`, na.rm = TRUE)) %>%
+  ungroup() %>%
+  mutate(PayCat_base = factor(PayCat_base, levels = ordered_levels_sum)) %>%
+  group_by(Over65_quintile) %>%
+  mutate(
+    group_total = sum(`Total (£)`),
+    pct = `Total (£)` / group_total,
+    label_text = paste0(
+  scales::percent(pct, accuracy = 1),
+  " (",
+  scales::label_number(
+    accuracy = 0.1,          
+    scale = 1e-6,            
+    suffix = "m"
+  )(`Total (£)`),
+  ")"
+)
+  ) %>%
+  ungroup()
+
+Barchart_Total_Payments_By_Categories_over65 <- ggplot(Total_Finance_Categories_over65, aes(
+  x = `Total (£)`,
+  y = as.factor(Over65_quintile),
+  fill =  PayCat_base
+)) +
+  geom_bar(stat = "identity") +
+  geom_text(
+   aes(label = paste0(
+      scales::percent(pct, accuracy = 1),  # Percentage (50%)
+      "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
+    )),
+    size = 2.5,
+    position = position_stack(vjust = 0.5),
+    hjust = 0.5
+  ) +
+  #scale_x_continuous(labels = scales::comma)+
+  labs(
+    title = "Total NHS Payments by Over 65 Quintile (2023)",
+    x = "IMD Quintile (1 = Most Deprived, 5 = Least Deprived)",
+    y = "Total Payments (£)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 12)
+  )
+
+Registered_Patients_Finance_Categories_Over65 <- Avg_Finance_Categories_over65 %>%
+  filter(
+    YEAR == 2023,
+    grepl("\\(Registered\\)$", `Payment Category`),  
+    !is.na(Over65_quintile)
+  ) %>%
+  mutate(PayCat_base = factor(PayCat_base, levels = ordered_levels_avg)) %>%
+  group_by(Over65_quintile) %>%
+  mutate(
+    group_total = sum(`Total (£)`),
+    pct = `Total (£)` / group_total,
+    label_text = paste0(
+      scales::percent(pct, accuracy = 1), 
+      " (", scales::comma(`Total (£)`, accuracy = 0.1), ")"
+    )
+  ) %>%
+  ungroup()
+
+Barchart_Registered_Patients_By_Categories_over65 <- ggplot(Registered_Patients_Finance_Categories_Over65, aes(
+  x = `Total (£)`,
+  y = Over65_quintile,
+  fill =  PayCat_base
+)) +
+  geom_bar(stat = "identity") +
+  geom_text(
+   aes(label = paste0(
+      scales::percent(pct, accuracy = 1),  # Percentage (50%)
+      "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
+    )),
+    size = 2.5,
+    position = position_stack(vjust = 0.5),
+    hjust = 0.5
+  ) +
+  labs(
+    title = "Average NHS Payments per Registered Patient by Over 65 Quintile (2023)",
+    x = "% Over 65 Quintile (1 = Least over 65, 5 = Most over 65)",
+    y = "Average Payment per Registered Patient (£)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 12)
+  )
+
+Weighted_Patients_Finance_Categories_over65 <- Avg_Finance_Categories_over65 %>%
+  filter(
+    YEAR == 2023,
+    grepl("\\(Weighted\\)$", `Payment Category`),
+    !is.na(Over65_quintile)
+  ) %>%
+  mutate(PayCat_base = factor(PayCat_base, levels = ordered_levels_avg)) %>%
+  group_by(Over65_quintile) %>%
+  mutate(
+    group_total = sum(`Total (£)`),
+    pct = `Total (£)` / group_total,
+    label_text = paste0(
+      scales::percent(pct, accuracy = 1), 
+      " (", scales::comma(`Total (£)`, accuracy = 0.1), ")"
+    )
+  ) %>%
+  ungroup()
+
+Barchart_Weighted_Patients_By_Categories_Over65 <- ggplot(
+  Weighted_Patients_Finance_Categories_over65,
+  aes(
+    x = `Total (£)`,
+    y = as.factor(Over65_quintile),
+    fill = PayCat_base
+  )
+) +
+  geom_bar(stat = "identity") +
+  geom_text(
+ aes(label = paste0(
+      scales::percent(pct, accuracy = 1),  # Percentage (50%)
+      "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
+    )),
+    size = 2.5,
+    position = position_stack(vjust = 0.5),
+    hjust = 0.5
+  ) +
+  labs(
+    title = "Average NHS Payments per Weighted Patient by Over 65 Quintile (2023)",
+    x = "% Over 65 Quintile (1 = Least over 65, 5 = Most over 65)",
+    y = "Average Payment per Weighted Patient (£)"
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    axis.text.x = element_text(face = "bold"),
+    plot.title = element_text(face = "bold", size = 12)
+  )
+
+
+#print in Markdown
+print(Weighted_By_Year)
+print(Registered_By_Year)
+print(Barchart_Total_Payments_By_Categories)
+print(Barchart_Registered_Patients_By_Categories)
+print(Barchart_Weighted_Patients_By_Categories)
+print(Barchart_Registered_Patients_By_Categories_over65)
+print(Barchart_Total_Payments_By_Categories_over65)
+print(Barchart_Weighted_Patients_By_Categories_Over65)
+
+
+
+#join IMD onto and then group by year and imd, add the avg registered and weighted columns for each group as well 
+finances_TOTAL <- finances_GROUPED_TOTAL %>%
+  left_join(prac_imd, by = c("YEAR", "PRACTICE_CODE")) %>%
+  filter(!is.na(IMD_QUINTILE)) %>%
+  mutate(IMD_QUINTILE = as.factor(IMD_QUINTILE)) %>%
+  group_by(YEAR) %>%
+  summarise(
+    Global_Sum          = sum(Total.Global.Sum, na.rm = TRUE),
+    IT_Premises         = sum(Total.IT.Premises, na.rm = TRUE),
+    COVID_19         = sum(Total.COVID, na.rm = TRUE),
+    Other_And_PCOAdmin  = sum(Total.OtherAndPCOAdmin, na.rm = TRUE),
+    Directed_Enhanced_Services = sum(Total.DirectedEnhancedServices, na.rm = TRUE),
+    ACCESSANDTRANSFORMATION = sum(Total.AccessAndTransFormation, na.rm = TRUE),
+    Local_Incentive_Schemes = sum(LIS, na.rm = TRUE),
+    Prescribing         = sum(PRESCRIBING_FEE, na.rm = TRUE),
+    Dispensing          = sum(DISPENSING_FEE, na.rm = TRUE),
+    DrugReinbursement   = sum(REINBURSMENT_FEE, na.rm = TRUE),
+    QOF                 = sum(QOF_PAYMENT, na.rm = TRUE),
+    Deductions          = sum(DEDUCTIONS, na.rm = TRUE),
+    PCNPARTICIPATION          = sum(PCNP, na.rm = TRUE),
+    REGISTERED          = sum(REGISTERED_PATIENTS, na.rm = TRUE),
+    WEIGHTED            = sum(WEIGHTED_PATIENTS, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(across(
+    c(Global_Sum, IT_Premises, Other_And_PCOAdmin, Directed_Enhanced_Services, Local_Incentive_Schemes, Prescribing, Dispensing, DrugReinbursement, QOF, Deductions, PCNPARTICIPATION, ACCESSANDTRANSFORMATION, COVID_19),
+    list(
+      "Avg (Registered)" = ~ . / REGISTERED,
+      "Avg (Weighted)"   = ~ . / WEIGHTED
+    ),
+    .names = "{.col} {fn}"
+  ))
+
+#pivot long
+finances_TOTAL <- finances_TOTAL %>%
+  pivot_longer(
+    cols = -c(YEAR),
+    names_to = "Payment Category",
+    values_to = "Total (£)"
+  )
+
+
+#create a uniform payment category column
+finances_TOTAL <- finances_TOTAL %>%
+  mutate(
+    PayCat_base = str_trim(
+      str_remove(`Payment Category`,
+                 regex("\\((Registered|Weighted|ADJ)\\)$", ignore_case = TRUE))
+    )
+  )%>%
+  filter(PayCat_base != "Deductions Avg")  # Exclude rows where PayCat_base is "Deductions"
+
+ALL_ordered_levels_avg <- rev(c(
+  "Global_Sum Avg",
+  "IT_Premises Avg",
+  "QOF Avg",
+  "Local_Incentive_Schemes Avg",
+  "Directed_Enhanced_Services Avg",
+  "ACCESSANDTRANSFORMATION Avg",
+  "PCNPARTICIPATION Avg",
+  "COVID_19 Avg",
+  "Other_And_PCOAdmin Avg",
+  "Prescribing Avg",
+  "Dispensing Avg",
+  "DrugReinbursement Avg"
+  # "Deductions Avg",
+))
+
+
+ALL_Avg_Finance_Categories <- finances_TOTAL %>%
+  mutate(
+    # Set factor levels for PayCat_base upfront
+    PayCat_base = factor(PayCat_base, levels = ALL_ordered_levels_avg)
+  )
+
+# Apply the factor ordering and filtering in one go
+Registered_Patients_Finance_Categories_ALL <- ALL_Avg_Finance_Categories %>%
+  filter(
+    YEAR == 2023,
+    grepl("\\(Registered\\)$", `Payment Category`)  # Filter Registered categories
+  ) %>%
+  mutate(
+    # Apply the factor order again after filtering (important for consistency)
+    PayCat_base = factor(PayCat_base, levels = ALL_ordered_levels_avg),
+    group_total = sum(`Total (£)`),  # Sum total by group
+    pct = `Total (£)` / group_total,  # Calculate percentage
+    label_text = paste0(
+      scales::percent(pct, accuracy = 1),  # Display pct
+      " (", scales::comma(`Total (£)`, accuracy = 1), ")"  # Display raw total
+    )
+  ) %>%
+  ungroup()  # Ensure ungrouped after mutate
+
+Barchart_Registered_Patients_By_Categories_ALL <- ggplot(
+  Registered_Patients_Finance_Categories_ALL, 
+  aes(
+    x = pct,  # Empty x-axis for a single bar (no categorical grouping on x)
+    y = "",  # Use pct to define the height of each segment in the stacked bar
+    fill = PayCat_base  # Different colors for each category (PayCat_base)
+  )
+) +
+  geom_bar(stat = "identity", width = 1, position = "stack") +  # Stack the categories
+  geom_text(
+    aes(label = paste0(
+      scales::percent(pct, accuracy = 1),  # Percentage label (50%)
+      "\n(", scales::comma(`Total (£)`, accuracy = 1), ")"  # Raw number in brackets
+    )),
+    size = 3,  # Adjust text size as needed
+    position = position_stack(vjust = 0.5),  # Center the text vertically within each stack
+    hjust = 0.5  # Center the text horizontally
+  ) +
+  labs(
+    title = "Average NHS Payments per Registered Patient (2023)",
+    x = "Percentage of Total Payments (%)",  # Label for x-axis
+    y = NULL  # No y-axis label
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    axis.text.y = element_blank(),  # Remove y-axis text
+    axis.title.y = element_blank(),  # Remove y-axis title
+    axis.text.x = element_text(face = "bold"),  # Bold x-axis text (even if empty)
+    plot.title = element_text(face = "bold", size = 12)
+  )
+
+print(Barchart_Registered_Patients_By_Categories_ALL)
+
+#variation across practices 
+
+library(dplyr)
+library(ggplot2)
+library(tidyr)
+
+# First, let's summarize the finances data
+finances_Practice <- finances_GROUPED_TOTAL %>%
+  left_join(prac_imd, by = c("YEAR", "PRACTICE_CODE")) %>%      # Join with IMD data
+  filter(!is.na(IMD_QUINTILE), YEAR == 2023) %>%                 # Filter for YEAR = 2023 and non-missing IMD_QUINTILE
+  mutate(IMD_QUINTILE = as.factor(IMD_QUINTILE)) %>%              # Ensure IMD_QUINTILE is a factor
+  group_by(YEAR, PRACTICE_CODE) %>%                               # Group by YEAR and PRACTICE_CODE
+  summarise(
+    Global_Sum          = sum(Total.Global.Sum, na.rm = TRUE),
+    IT_Premises         = sum(Total.IT.Premises, na.rm = TRUE),
+    Other_And_PCOAdmin  = sum(Total.OtherAndPCOAdmin, na.rm = TRUE),
+    Directed_Enhanced_Services = sum(Total.DirectedEnhancedServices, na.rm = TRUE),
+    ACCESSANDTRANSFORMATION = sum(Total.AccessAndTransFormation, na.rm = TRUE),
+    Local_Incentive_Schemes = sum(LIS, na.rm = TRUE),
+    Prescribing         = sum(PRESCRIBING_FEE, na.rm = TRUE),
+    Dispensing          = sum(DISPENSING_FEE, na.rm = TRUE),
+    DrugReinbursement   = sum(REINBURSMENT_FEE, na.rm = TRUE),
+    QOF                 = sum(QOF_PAYMENT, na.rm = TRUE),
+    PCNPARTICIPATION    = sum(PCNP, na.rm = TRUE),
+    REGISTERED          = sum(REGISTERED_PATIENTS, na.rm = TRUE),
+    WEIGHTED            = sum(WEIGHTED_PATIENTS, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(
+    # Compute averages based on REGISTERED and WEIGHTED
+    `Avg (Registered)` = (Global_Sum + IT_Premises + Other_And_PCOAdmin + Directed_Enhanced_Services + 
+                          ACCESSANDTRANSFORMATION + Local_Incentive_Schemes + Prescribing + Dispensing + 
+                          DrugReinbursement + QOF + PCNPARTICIPATION) / REGISTERED,
+    
+    `Avg (Weighted)`   = (Global_Sum + IT_Premises + Other_And_PCOAdmin + Directed_Enhanced_Services + 
+                          ACCESSANDTRANSFORMATION + Local_Incentive_Schemes + Prescribing + Dispensing + 
+                          DrugReinbursement + QOF + PCNPARTICIPATION) / WEIGHTED
+  )
+
+# Now, create the bins for Avg (Registered) and Avg (Weighted)
+finances_Practice_binned <- finances_Practice %>%
+  mutate(
+    `Registered Group` = cut(`Avg (Registered)`, breaks = seq(0, 500, by = 10), right = FALSE, include.lowest = TRUE, 
+                           labels = paste(seq(0, 490, by = 10), seq(9, 499, by = 10), sep = "-")),
+    `Weighted Group` = cut(`Avg (Weighted)`, breaks = seq(0, 500, by = 10), right = FALSE, include.lowest = TRUE, 
+                         labels = paste(seq(0, 490, by = 10), seq(9, 499, by = 10), sep = "-"))
+  )
+
+# Reshape data to long format for easier plotting
+finances_Practice_binned_long <- finances_Practice_binned %>%
+  pivot_longer(cols = c(`Registered Group`, `Weighted Group`), 
+               names_to = "Metric", 
+               values_to = "Bin")
+
+# Now, let's create the side-by-side histogram using ggplot2
+paymentVariation <- ggplot(finances_Practice_binned_long) +
+  geom_bar(aes(x = Bin, fill = Metric), position = "dodge", alpha = 0.7, width = 0.8) +
+  scale_fill_manual(values = c("Registered Group" = "blue", "Weighted Group" = "red")) +
+  labs(x = "Practices by average Registered and Weighted payments per capita Grouped into £10 Intervals", 
+       y = "Count of Practices", 
+       title = "Variation in payments per capita across practices") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1), 
+        axis.title.x = element_text(size = 12), 
+        axis.title.y = element_text(size = 12),
+        legend.title = element_blank())
+
+# Step 1: Create bins for both `Avg (Registered)` and `Avg (Weighted)` independently
+finances_Practice_binned <- finances_Practice %>%
+  mutate(
+    # Create bins for `Avg (Registered)`
+    `Registered Bin` = cut(
+      `Avg (Registered)`,
+      breaks = seq(0, 500, by = 10),   # Define bin ranges (0-10, 10-20, ..., 490-500)
+      right = FALSE,                   # Ensure bins are closed on the left
+      include.lowest = TRUE,           # Include the lowest value in the first bin
+      labels = paste(seq(0, 490, by = 10), seq(9, 499, by = 10), sep = "-")
+    ),
+    
+    # Create bins for `Avg (Weighted)`
+    `Weighted Bin` = cut(
+      `Avg (Weighted)`,
+      breaks = seq(0, 500, by = 10),   # Define bin ranges (0-10, 10-20, ..., 490-500)
+      right = FALSE,                   # Ensure bins are closed on the left
+      include.lowest = TRUE,           # Include the lowest value in the first bin
+      labels = paste(seq(0, 490, by = 10), seq(9, 499, by = 10), sep = "-")
+    )
+  )
+
+# Step 2: Summarize by bins: Count number of practices in each bin for both Registered and Weighted
+finances_Practice_binned_summary <- finances_Practice_binned %>%
+  # Group by Registered Bin and Weighted Bin
+  group_by(`Registered Bin`, `Weighted Bin`) %>%
+  summarise(
+    Count_Registered_Practices = n_distinct(PRACTICE_CODE[!is.na(`Avg (Registered)`)]),  # Count distinct practices in Registered Bin
+    Count_Weighted_Practices = n_distinct(PRACTICE_CODE[!is.na(`Avg (Weighted)`)]),     # Count distinct practices in Weighted Bin
+    .groups = "drop"  # Drop the grouping after summarizing
+  )
+
+library(writexl)
+write_xlsx(finances_Practice_binned_summary, "Binned_Summary.xlsx")
+
+print(paymentVariation)
+
+
+# First, let's summarize the finances data
+finances_Practice <- finances_GROUPED_TOTAL %>%
+  left_join(prac_imd, by = c("YEAR", "PRACTICE_CODE")) %>%      # Join with IMD data
+  filter(!is.na(IMD_QUINTILE), YEAR == 2023) %>%                 # Filter for YEAR = 2023 and non-missing IMD_QUINTILE
+  mutate(IMD_QUINTILE = as.factor(IMD_QUINTILE)) %>%              # Ensure IMD_QUINTILE is a factor
+  group_by(YEAR, Dispensing_Practice) %>%                               # Group by YEAR and PRACTICE_CODE
+  summarise(
+    Global_Sum          = sum(Total.Global.Sum, na.rm = TRUE),
+    IT_Premises         = sum(Total.IT.Premises, na.rm = TRUE),
+    Other_And_PCOAdmin  = sum(Total.OtherAndPCOAdmin, na.rm = TRUE),
+    Directed_Enhanced_Services = sum(Total.DirectedEnhancedServices, na.rm = TRUE),
+    ACCESSANDTRANSFORMATION = sum(Total.AccessAndTransFormation, na.rm = TRUE),
+    Local_Incentive_Schemes = sum(LIS, na.rm = TRUE),
+    Prescribing         = sum(PRESCRIBING_FEE, na.rm = TRUE),
+    Dispensing          = sum(DISPENSING_FEE, na.rm = TRUE),
+    Deductions          = sum(DEDUCTIONS, na.rm = TRUE),
+    DrugReinbursement   = sum(REINBURSMENT_FEE, na.rm = TRUE),
+    QOF                 = sum(QOF_PAYMENT, na.rm = TRUE),
+    PCNPARTICIPATION    = sum(PCNP, na.rm = TRUE),
+    REGISTERED          = sum(REGISTERED_PATIENTS, na.rm = TRUE),
+    WEIGHTED            = sum(WEIGHTED_PATIENTS, na.rm = TRUE),
+    .groups = "drop"
+  )%>%
+  mutate(across(
+    c(Global_Sum, IT_Premises, Other_And_PCOAdmin, Directed_Enhanced_Services, Local_Incentive_Schemes, Prescribing, Dispensing, DrugReinbursement, QOF, Deductions, PCNPARTICIPATION, ACCESSANDTRANSFORMATION),
+    list(
+      "Avg (Registered)" = ~ . / REGISTERED,
+      "Avg (Weighted)"   = ~ . / WEIGHTED
+    ),
+    .names = "{.col} {fn}"
+  ))
+
+# Define the custom order for categories
+ALL_ordered_levels_avg <- rev(c(
+  "Global_Sum",
+  "IT_Premises",
+  "QOF",
+  "Local_Incentive_Schemes",
+  "Directed_Enhanced_Services",
+  "ACCESSANDTRANSFORMATION",
+  "PCNPARTICIPATION",
+  "Other_And_PCOAdmin",
+  "Prescribing",
+  "Dispensing",
+  "DrugReinbursement",
+  "Deductions"
+))
+
+# Prepare the data
+barplot_data <- finances_Practice %>%
+  select(
+    Dispensing_Practice,
+    ends_with("Avg (Registered)"),
+    ends_with("Avg (Weighted)")
+  ) %>%
+  pivot_longer(
+    cols = -Dispensing_Practice,
+    names_to = c("Payment_Category", "Patient_Type"),
+    names_pattern = "^(.*) Avg \\((Registered|Weighted)\\)$",
+    values_to = "Avg_Payment"
+  ) %>%
+  mutate(
+    Group = factor(
+      paste(Dispensing_Practice, Patient_Type, sep = " - "),
+      levels = c(
+         "Yes - Weighted",
+        "No - Weighted",
+        "Yes - Registered",
+        "No - Registered"
+      )
+    )
+  )
+
+# Apply factor ordering separately to Payment_Category
+barplot_data$Payment_Category <- factor(
+  barplot_data$Payment_Category,
+  levels = ALL_ordered_levels_avg
+)
+
+dispensingPlot <- ggplot(barplot_data,
+       aes(y = Group,
+           x = Avg_Payment,
+           fill = Payment_Category)) +
+  geom_col() +
+  # Add the Avg_Payment data labels centered on each bar
+  geom_text(aes(label = round(Avg_Payment, 0)), 
+            position = position_stack(vjust = 0.5),  # Position text in the center of the bar
+            color = "black", size = 3) +  # White text for contrast
+  labs(
+    y = NULL,
+    x = "Average Payment per Patient",
+    fill = "Payment Category"
+  ) +
+  theme_minimal() 
+
+print(dispensingPlot)
+
+
+
+#join IMD onto and then group by year and imd, add the avg registered and weighted columns for each group as well 
+finances_IMD_PRACTICE <- finances_GROUPED_TOTAL %>%
+  left_join(prac_imd, by = c("YEAR", "PRACTICE_CODE")) %>%
+  filter(!is.na(IMD_QUINTILE)) %>%
+  mutate(IMD_QUINTILE = as.factor(IMD_QUINTILE)) %>%
+  group_by(PRACTICE_CODE, IMD_QUINTILE, YEAR) %>%
+  summarise(
+    Global_Sum          = sum(Total.Global.Sum, na.rm = TRUE),
+    IT_Premises         = sum(Total.IT.Premises, na.rm = TRUE),
+    Other_And_PCOAdmin  = sum(Total.OtherAndPCOAdmin, na.rm = TRUE),
+    Directed_Enhanced_Services = sum(Total.DirectedEnhancedServices, na.rm = TRUE),
+    ACCESSANDTRANSFORMATION = sum(Total.AccessAndTransFormation, na.rm = TRUE),
+    Local_Incentive_Schemes = sum(LIS, na.rm = TRUE),
+    Prescribing         = sum(PRESCRIBING_FEE, na.rm = TRUE),
+    Dispensing          = sum(DISPENSING_FEE, na.rm = TRUE),
+    DrugReinbursement   = sum(REINBURSMENT_FEE, na.rm = TRUE),
+    QOF                 = sum(QOF_PAYMENT, na.rm = TRUE),
+    Deductions          = sum(DEDUCTIONS, na.rm = TRUE),
+    PCNPARTICIPATION          = sum(PCNP, na.rm = TRUE),
+    REGISTERED          = sum(REGISTERED_PATIENTS, na.rm = TRUE),
+    WEIGHTED            = sum(WEIGHTED_PATIENTS, na.rm = TRUE),
+    .groups = "drop"
+  ) %>%
+  mutate(across(
+    c(Global_Sum, IT_Premises, Other_And_PCOAdmin, Directed_Enhanced_Services, Local_Incentive_Schemes, Prescribing, Dispensing, DrugReinbursement, QOF, Deductions, PCNPARTICIPATION, ACCESSANDTRANSFORMATION),
+    list(
+      "Avg (Registered)" = ~ . / REGISTERED,
+      "Avg (Weighted)"   = ~ . / WEIGHTED
+    ),
+    .names = "{.col} {fn}"
+  )) 
+
+
+finances_by_imd <- finances_IMD_PRACTICE %>%
+  group_by(IMD_QUINTILE) %>%
+  summarise(
+    Avg_Registered_Global_Sum = mean(`Global_Sum Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_Global_Sum = mean(`Global_Sum Avg (Weighted)`, na.rm = TRUE),
+     Avg_Registered_IT_Premises = mean(`IT_Premises Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_IT_Premises = mean(`IT_Premises Avg (Weighted)`, na.rm = TRUE),
+     Avg_Registered_Other_And_PCOAdmin = mean(`Other_And_PCOAdmin Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_Other_And_PCOAdmin = mean(`Other_And_PCOAdmin Avg (Weighted)`, na.rm = TRUE),
+     Avg_Registered_Directed_Enhanced_Services = mean(`Directed_Enhanced_Services Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_Directed_Enhanced_Services = mean(`Directed_Enhanced_Services Avg (Weighted)`, na.rm = TRUE),
+     Avg_Registered_ACCESSANDTRANSFORMATION = mean(`ACCESSANDTRANSFORMATION Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_ACCESSANDTRANSFORMATION = mean(`ACCESSANDTRANSFORMATION Avg (Weighted)`, na.rm = TRUE),
+     Avg_Registered_Local_Incentive_Schemes = mean(`Local_Incentive_Schemes Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_Local_Incentive_Schemes = mean(`Local_Incentive_Schemes Avg (Weighted)`, na.rm = TRUE),
+     Avg_Registered_Prescribing = mean(`Prescribing Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_Prescribing = mean(`Prescribing Avg (Weighted)`, na.rm = TRUE),
+     Avg_Registered_Dispensing = mean(`Dispensing Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_Dispensing = mean(`Dispensing Avg (Weighted)`, na.rm = TRUE),
+     Avg_Registered_DrugReinbursement = mean(`DrugReinbursement Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_DrugReinbursement = mean(`DrugReinbursement Avg (Weighted)`, na.rm = TRUE),
+     Avg_Registered_QOF = mean(`QOF Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_QOF = mean(`QOF Avg (Weighted)`, na.rm = TRUE),
+     Avg_Registered_Deductions = mean(`Deductions Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_Deductions = mean(`Deductions Avg (Weighted)`, na.rm = TRUE),
+     Avg_Registered_PCNPARTICIPATION = mean(`PCNPARTICIPATION Avg (Registered)`, na.rm = TRUE),
+    Avg_Weighted_PCNPARTICIPATION = mean(`PCNPARTICIPATION Avg (Weighted)`, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
+
+library(dplyr)
+library(tidyr)
+library(dplyr)
+library(tidyr)
+
+# Step 1: Pivot the data to long format
+finances_by_imd_long <- finances_by_imd %>%
+  pivot_longer(
+    cols = starts_with("Avg"),   # Select all columns that start with "Avg"
+    names_to = "Category",        # Create a new column 'Category' for the original column names
+    values_to = "Value",          # Create a new column 'Value' for the values of the averages
+    names_prefix = "Avg_"         # Optional: Clean up the column names by removing "Avg_"
+  ) %>%
+  # Step 2: Separate Registered and Weighted categories
+  mutate(
+    Category_Type = case_when(
+      grepl("Registered", Category) ~ "Registered",
+      grepl("Weighted", Category) ~ "Weighted",
+      TRUE ~ "Other"
+    )
+  )
+
+# Step 3: Calculate separate totals for Registered and Weighted categories
+total_by_imd <- finances_by_imd_long %>%
+  group_by(IMD_QUINTILE, Category_Type) %>%
+  summarise(
+    Total_Value = sum(Value, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+# Step 4: Join the total values (separate for Registered and Weighted) back to the long-format data
+finances_by_imd_long_with_total <- finances_by_imd_long %>%
+  left_join(total_by_imd, by = c("IMD_QUINTILE", "Category_Type"))
+
+# Step 5: Calculate the percentage for each category and category type (Registered or Weighted)
+finances_by_imd_long_with_percent <- finances_by_imd_long_with_total %>%
+  mutate(
+    Percent = (Value / Total_Value) * 100
+  )
+
+
+
+
+
+
+
+
+```
