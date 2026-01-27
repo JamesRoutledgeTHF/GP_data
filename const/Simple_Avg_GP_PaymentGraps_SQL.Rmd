@@ -1255,11 +1255,71 @@ finances_by_imd_long_with_total <- finances_by_imd_long %>%
 # Step 5: Calculate the percentage for each category and category type (Registered or Weighted)
 finances_by_imd_long_with_percent <- finances_by_imd_long_with_total %>%
   mutate(
-    Percent = (Value / Total_Value) * 100
+    Percent = (Value / Total_Value)
   )
 
 
+finances_filtered <- finances_by_imd_long_with_percent %>%
+  filter(Category_Type == "Weighted")
 
+ALL_ordered_levels_avg <- rev(c(
+  "Weighted_Global_Sum",
+  "Weighted_IT_Premises",
+  "Weighted_QOF",
+  "Weighted_Local_Incentive_Schemes",
+  "Weighted_Directed_Enhanced_Services",
+  "Weighted_ACCESSANDTRANSFORMATION",
+  "Weighted_PCNPARTICIPATION",
+  "Weighted_Other_And_PCOAdmin",
+  "Weighted_Prescribing",
+  "Weighted_Dispensing",
+  "Weighted_DrugReinbursement",
+  "Weighted_Deductions"
+))
+
+finances_filtered$Category <- factor(
+finances_filtered$Category,
+levels = ALL_ordered_levels_avg
+)
+
+finances_filtered$IMD_QUINTILE <- factor(
+finances_filtered$IMD_QUINTILE,
+levels = c(1,2,3,4,5)
+)
+
+SimpleAVG_Barchart_Registered_Patients_By_Categories_ALL <- ggplot(
+  finances_filtered, 
+  aes(
+    x = Value,  # Use Percent for the bar length (x-axis)
+    y = IMD_QUINTILE,  # Use IMD_QUINTILE for the y-axis
+    fill = Category  # Color the bars by Category
+  )
+) +
+  geom_bar(stat = "identity", width = 0.8, position = "stack") +  # Stack the categories
+  geom_text(
+    aes(label = paste0(
+      scales::percent(Percent, accuracy = 0.1),  # Show percentage with 1 decimal point (e.g., 60.7%)
+      "\n(", scales::comma(Value, accuracy = 0.1), ")"  # Then show raw value in brackets
+    )),
+    size = 3,  # Adjust text size as needed
+    position = position_stack(vjust = 0.5),  # Center the text vertically within each stack
+    hjust = 0.5  # Center the text horizontally
+  ) +
+  labs(
+    title = "Average NHS Payments per Registered Patient (2023)",
+    x = "Percentage of Total Payments (%)",  # Label for x-axis
+    y = "IMD Quintile"  # Label for y-axis (IMD_QUINTILE)
+  ) +
+  theme_minimal(base_size = 14) +
+  theme(
+    legend.position = "right",
+    panel.grid.minor = element_blank(),
+    axis.text.y = element_text(face = "bold"),  # Bold y-axis text for readability
+    axis.text.x = element_text(face = "bold"),  # Bold x-axis text for readability
+    axis.title.y = element_text(face = "bold"),  # Bold y-axis title
+    axis.title.x = element_text(face = "bold"),  # Bold x-axis title
+    plot.title = element_text(face = "bold", size = 14)
+  )
 
 
 

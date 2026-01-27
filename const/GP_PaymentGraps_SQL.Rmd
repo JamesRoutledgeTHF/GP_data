@@ -7,7 +7,7 @@ output: html_document
 knitr::opts_chunk$set(
   fig.width = 12,
   fig.height = 5,
-  dpi = 300
+  dpi = 400
 )
 
 ```
@@ -504,7 +504,7 @@ Barchart_Registered_Patients_By_Categories <- ggplot(Registered_Patients_Finance
       scales::percent(pct, accuracy = 1),  # Percentage (50%)
       "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
     )),
-    size = 1.8,
+    size = 2,
     position = position_stack(vjust = 0.5),
     hjust = 0.5
   ) +
@@ -553,7 +553,7 @@ Barchart_Weighted_Patients_By_Categories <- ggplot(
       scales::percent(pct, accuracy = 1),  # Percentage (50%)
       "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
     )),
-    size = 1.8,
+    size = 2,
     position = position_stack(vjust = 0.5),
     hjust = 0.5
   ) +
@@ -582,6 +582,10 @@ plot_list <- list(
   Barchart_Weighted_Patients_By_Categories
   #Barchart_Adj_Patients_By_Categories
 )
+
+write_xlsx(Weighted_Patients_Finance_Categories, "Weighted_Categories.xlsx")
+write_xlsx(Registered_Patients_Finance_Categories, "Registered_Categories.xlsx")
+
 
 
 # Export all plots to a single PDF
@@ -949,6 +953,7 @@ Barchart_Registered_Patients_By_Categories_ALL <- ggplot(
   )
 
 print(Barchart_Registered_Patients_By_Categories_ALL)
+write_xlsx(Registered_Patients_Finance_Categories_ALL, "Registered_All_Bar.xlsx")
 
 #variation across practices 
 
@@ -1150,6 +1155,7 @@ dispensingPlot <- ggplot(barplot_data,
   theme_minimal() 
 
 print(dispensingPlot)
+write_xlsx(barplot_data, "DispensingNonDispensing.xlsx")
 
 
 ```

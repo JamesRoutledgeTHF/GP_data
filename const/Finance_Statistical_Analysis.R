@@ -35,48 +35,6 @@ finances_IMD_PRACTICE <- finances_GROUPED_TOTAL %>%
 finances_IMD_PRACTICE$IMD_QUINTILE <- factor(finances_IMD_PRACTICE$IMD_QUINTILE,
                                              levels = c('5', '1', '2', '3', '4'))
 
-finances_IMD_PRACTICE_Global_Weight <- finances_IMD_PRACTICE %>% filter( 
-  `Global_Sum Avg (Weighted)` >= 0)
-
-finances_IMD_PRACTICE_prescribing <- finances_IMD_PRACTICE %>% filter( 
-  `Prescribing Avg (Weighted)` >= 0, 
-)
-
-finances_IMD_PRACTICE_IT_Premises <- finances_IMD_PRACTICE %>% filter( 
-  `IT_Premises Avg (Weighted)` >= 0, 
-)
-
-finances_IMD_PRACTICE_Other_And_PCOAdmin <- finances_IMD_PRACTICE %>% filter( 
-  `Other_And_PCOAdmin Avg (Weighted)` >= 0, 
-)
-
-finances_IMD_PRACTICE_LIS <- finances_IMD_PRACTICE %>% filter( 
-  `Local_Incentive_Schemes Avg (Weighted)` >= 0, 
-)
-
-finances_IMD_PRACTICE_DES <- finances_IMD_PRACTICE %>% filter( 
-  `Directed_Enhanced_Services Avg (Weighted)` >= 0, 
-)
-
-finances_IMD_PRACTICE_DrugReinbursement <- finances_IMD_PRACTICE %>% filter( 
-  `DrugReinbursement Avg (Weighted)` >= 0, 
-)
-
-finances_IMD_PRACTICE_PCNParticipation <- finances_IMD_PRACTICE %>% filter( 
-  `PCNPARTICIPATION Avg (Weighted)` >= 0, 
-)
-
-finances_IMD_PRACTICE_QOF <- finances_IMD_PRACTICE %>% filter( 
-  `PCNPARTICIPATION Avg (Weighted)` >= 0, 
-)
-
-finances_IMD_PRACTICE_ACCESS_TRANSFORMATION <- finances_IMD_PRACTICE %>% filter( 
-  `ACCESSANDTRANSFORMATION Avg (Weighted)` >= 0, 
-)
-
-finances_IMD_PRACTICE_Dispensing <- finances_IMD_PRACTICE %>% filter( 
-  `Dispensing Avg (Weighted)` >= 0, 
-)
 
 options(scipen = 0)  # This makes R avoid scientific notation
 
@@ -158,25 +116,18 @@ finance_imd_wide_regression <- finance_imd_wide_regression %>%
     # Grouping by the number of registered patients
     Registered_Patient_Group = cut(
       `Average Number of Registered Patients`,  # This is the column for grouping
-      breaks = c(0, 10000, 20000, 50000),      # Define the bins: 0-10,000, 10,001-20,000, 20,001-50,000
+      breaks = c(0, 5000, 10000, 20000, 50000),      # Define the bins: 0-10,000, 10,001-20,000, 20,001-50,000
       right = FALSE,                           # Ensure bins are closed on the left
       include.lowest = TRUE,                   # Include the lowest value in the first bin
-      labels = c("0-10,000", "10,001-20,000", "20,001-50,000") # Assign labels for the bins
+      labels = c("0-5000", "5001-10000", "10001-20000", "20001-50000" ) # Assign labels for the bins
     )
   )
 
 finance_imd_wide_regression <- finance_imd_wide_regression %>%
   mutate(
-    # Grouping by `Pct_Over_65`
-    Pct_Over_65_Group = cut(
-      Pct_Over_65,                           # This is the column for grouping
-      breaks = c(0, 10, 20, 30, 40, 55),     # Define the bins: 0-10%, 11-20%, 21-30%, 31-40%, 41-55%
-      right = FALSE,                         # Ensure bins are closed on the left
-      include.lowest = TRUE,                 # Include the lowest value in the first bin
-      labels = c("0-10%", "11-20%", "21-30%", "31-40%", "41-55%") # Assign labels for the bins
-    )
+    # Grouping by `Pct_Over_65` into terciles
+    Pct_Over_65_Tercile = ntile(Pct_Over_65, 3)  # Divide the data into 3 equal parts
   )
-
 
 finance_imd_wide_regression <- finance_imd_wide_regression %>%
   inner_join(GPPS_Datasets %>%
@@ -194,21 +145,19 @@ finance_imd_wide_regression <- finance_imd_wide_regression %>%
 
 finance_imd_wide_regression <- finance_imd_wide_regression %>%
   mutate(
-    # Grouping by `Field_Value`
-    Field_Value = cut(
-      Field_Value,                           # This is the column for grouping
-      breaks = c(0, 0.25, 0.50, 0.75, 1.00),     # Define the bins: 0-10%, 11-20%, 21-30%, 31-40%, 41-55%
-      right = FALSE,                         # Ensure bins are closed on the left
-      include.lowest = TRUE,                 # Include the lowest value in the first bin
-      labels = c("0-25%", "26-50%", "51-75%", "76-100%") # Assign labels for the bins
-    )
+    # Grouping by `Pct_Over_65` into terciles
+    Field_Value_Tercile = ntile(Field_Value, 3)  # Divide the data into 3 equal parts
   )
 
 finance_imd_wide_regression$ownershipType <- factor(finance_imd_wide_regression$ownershipType,
                                                     levels = c('Partnership', 'Individual', "Organisation", "NHS Body"))
 
-finance_imd_wide_regression$Field_Value <- factor(finance_imd_wide_regression$Field_Value,
-                                                    levels = c('26-50%', '51-75%', "76-100%", "0-25%"))
+finance_imd_wide_regression$Field_Value_Tercile <- factor(finance_imd_wide_regression$Field_Value_Tercile,
+                                                   levels = c('1', '2', '3'))
+
+finance_imd_wide_regression$Pct_Over_65_Tercile <- factor(finance_imd_wide_regression$Pct_Over_65_Tercile,
+                                                          levels = c('1', '2', '3'))
+
 #removed_rows <- finance_imd_wide_regression %>%
 #  left_join(CQC_Datasets_joined %>%
        #       select(odsCode, ownershipType), 
@@ -217,10 +166,10 @@ finance_imd_wide_regression$Field_Value <- factor(finance_imd_wide_regression$Fi
 
 #also join the GPPS data onto the dataset..
 
-All_regression_registered <- lm(`Average payments per registered patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + Registered_Patient_Group + Pct_Over_65_Group + Field_Value + ownershipType, data = finance_imd_wide_regression)
+All_regression_registered <- lm(`Average payments per registered patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + Registered_Patient_Group + Pct_Over_65_Tercile + Field_Value_Tercile + ownershipType, data = finance_imd_wide_regression)
 summary(All_regression_registered)
 
-All_regression_weighted <- lm(`Average payments per weighted patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + Registered_Patient_Group + Pct_Over_65_Group + Field_Value + ownershipType, data = finance_imd_wide_regression)
+All_regression_weighted <- lm(`Average payments per weighted patient` ~ IMD_QUINTILE + Contract_Type + Dispensing_Practice + Practice_Rurality + Registered_Patient_Group + Pct_Over_65_Tercile + Field_Value_Tercile + ownershipType, data = finance_imd_wide_regression)
 summary(All_regression_weighted)
 
 
