@@ -32,8 +32,12 @@ filtered_for_metrics <- finance_datasets %>%
 finance_datasets <- finance_datasets %>%
   anti_join(filtered_for_metrics, by = c("YEAR", "Practice_Code"))
 
+relevant_metrics_average <- c("AveragePaymentsPerRegisteredPatient_£", 
+                      "Average payments per registered patient", 
+                      "Average payments per registered patient1")
+                  
 outliers_005pct <- finance_datasets %>%
-  filter(Metric %in% relevant_metrics) %>%
+  filter(Metric %in% relevant_metrics_average) %>%
   group_by(YEAR) %>%
   mutate(
     p005 = quantile(Metric_Value, 0.005, na.rm = TRUE),
@@ -875,8 +879,7 @@ finances_TOTAL <- finances_TOTAL %>%
       str_remove(`Payment Category`,
                  regex("\\((Registered|Weighted|ADJ)\\)$", ignore_case = TRUE))
     )
-  )%>%
-  filter(PayCat_base != "Deductions Avg")  # Exclude rows where PayCat_base is "Deductions"
+  )
 
 ALL_ordered_levels_avg <- rev(c(
   "Global_Sum Avg",
@@ -890,8 +893,8 @@ ALL_ordered_levels_avg <- rev(c(
   "Other_And_PCOAdmin Avg",
   "Prescribing Avg",
   "Dispensing Avg",
-  "DrugReinbursement Avg"
-  # "Deductions Avg",
+  "DrugReinbursement Avg",
+  "Deductions Avg"
 ))
 
 
@@ -1021,6 +1024,31 @@ paymentVariation <- ggplot(finances_Practice_binned_long) +
         axis.title.y = element_text(size = 12),
         legend.title = element_blank())
 
+#find the mean and median payments for weighted and registered 
+
+summary_payments_registered <- finances_Practice_binned_long %>%
+  filter(Metric == "Registered Group") %>%
+  filter(`Avg (Registered)` >= 0) %>%   # remove negative payments
+  summarise(
+    mean_payment   = mean(`Avg (Registered)`, na.rm = TRUE),
+    median_payment = median(`Avg (Registered)`, na.rm = TRUE),
+    p5_payment     = quantile(`Avg (Registered)`, 0.05, na.rm = TRUE),
+    p95_payment    = quantile(`Avg (Registered)`, 0.95, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+summary_payments_weighted <- finances_Practice_binned_long %>%
+  filter(Metric == "Weighted Group") %>%
+  filter(`Avg (Weighted)` >= 0) %>%   # remove negative payments
+  summarise(
+    mean_payment   = mean(`Avg (Weighted)`, na.rm = TRUE),
+    median_payment = median(`Avg (Weighted)`, na.rm = TRUE),
+    p5_payment     = quantile(`Avg (Weighted)`, 0.05, na.rm = TRUE),
+    p95_payment    = quantile(`Avg (Weighted)`, 0.95, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+
 # Step 1: Create bins for both `Avg (Registered)` and `Avg (Weighted)` independently
 finances_Practice_binned <- finances_Practice %>%
   mutate(
@@ -1059,7 +1087,7 @@ write_xlsx(finances_Practice_binned_summary, "Binned_Summary.xlsx")
 print(paymentVariation)
 
 
-# First, let's summarize the finances data
+# First, let's summarise the finances data
 finances_Practice <- finances_GROUPED_TOTAL %>%
   left_join(prac_imd, by = c("YEAR", "PRACTICE_CODE")) %>%      # Join with IMD data
   filter(!is.na(IMD_QUINTILE), YEAR == 2023) %>%                 # Filter for YEAR = 2023 and non-missing IMD_QUINTILE
@@ -1156,6 +1184,101 @@ dispensingPlot <- ggplot(barplot_data,
 
 print(dispensingPlot)
 write_xlsx(barplot_data, "DispensingNonDispensing.xlsx")
+
+
+
+# First, let's summarise the finances data
+finances_Practice_GMS_PMS <- finances_GROUPED_TOTAL %>%
+  left_join(prac_imd, by = c("YEAR", "PRACTICE_CODE")) %>%      # Join with IMD data
+  filter(!is.na(IMD_QUINTILE), YEAR == 2023) %>%                 # Filter for YEAR = 2023 and non-missing IMD_QUINTILE
+  mutate(IMD_QUINTILE = as.factor(IMD_QUINTILE)) %>%              # Ensure IMD_QUINTILE is a factor
+  group_by(YEAR, CONTRACT_TYPE) %>%                               # Group by YEAR and PRACTICE_CODE
+  summarise(
+    Global_Sum          = sum(Total.Global.Sum, na.rm = TRUE),
+    IT_Premises         = sum(Total.IT.Premises, na.rm = TRUE),
+    Other_And_PCOAdmin  = sum(Total.OtherAndPCOAdmin, na.rm = TRUE),
+    Directed_Enhanced_Services = sum(Total.DirectedEnhancedServices, na.rm = TRUE),
+    ACCESSANDTRANSFORMATION = sum(Total.AccessAndTransFormation, na.rm = TRUE),
+    Local_Incentive_Schemes = sum(LIS, na.rm = TRUE),
+    Prescribing         = sum(PRESCRIBING_FEE, na.rm = TRUE),
+    Dispensing          = sum(DISPENSING_FEE, na.rm = TRUE),
+    Deductions          = sum(DEDUCTIONS, na.rm = TRUE),
+    DrugReinbursement   = sum(REINBURSMENT_FEE, na.rm = TRUE),
+    QOF                 = sum(QOF_PAYMENT, na.rm = TRUE),
+    PCNPARTICIPATION    = sum(PCNP, na.rm = TRUE),
+    REGISTERED          = sum(REGISTERED_PATIENTS, na.rm = TRUE),
+    WEIGHTED            = sum(WEIGHTED_PATIENTS, na.rm = TRUE),
+    .groups = "drop"
+  )%>%
+  mutate(across(
+    c(Global_Sum, IT_Premises, Other_And_PCOAdmin, Directed_Enhanced_Services, Local_Incentive_Schemes, Prescribing, Dispensing, DrugReinbursement, QOF, Deductions, PCNPARTICIPATION, ACCESSANDTRANSFORMATION),
+    list(
+      "Avg (Registered)" = ~ . / REGISTERED,
+      "Avg (Weighted)"   = ~ . / WEIGHTED
+    ),
+    .names = "{.col} {fn}"
+  ))
+
+# Define the custom order for categories
+ALL_ordered_levels_avg <- rev(c(
+  "Global_Sum",
+  "IT_Premises",
+  "QOF",
+  "Local_Incentive_Schemes",
+  "Directed_Enhanced_Services",
+  "ACCESSANDTRANSFORMATION",
+  "PCNPARTICIPATION",
+  "Other_And_PCOAdmin",
+  "Prescribing",
+  "Dispensing",
+  "DrugReinbursement",
+  "Deductions"
+))
+
+# Prepare the data
+barplot_data_contract <- finances_Practice_GMS_PMS %>%
+  select(
+    CONTRACT_TYPE,
+    ends_with("Avg (Registered)"),
+    ends_with("Avg (Weighted)")
+  ) %>%
+  pivot_longer(
+    cols = -CONTRACT_TYPE,
+    names_to = c("Payment_Category", "Patient_Type"),
+    names_pattern = "^(.*) Avg \\((Registered|Weighted)\\)$",
+    values_to = "Avg_Payment"
+  ) %>%
+  mutate(
+    Group = factor(
+      paste(CONTRACT_TYPE, Patient_Type, sep = " - "),
+      levels = unique(paste(CONTRACT_TYPE, Patient_Type, sep = " - "))  # Dynamically create levels
+    )
+  )
+
+
+# Apply factor ordering separately to Payment_Category
+barplot_data_contract$Payment_Category <- factor(
+  barplot_data_contract$Payment_Category,
+  levels = ALL_ordered_levels_avg
+)
+
+dispensingPlot_contract <- ggplot(barplot_data_contract,
+       aes(y = Group,
+           x = Avg_Payment,
+           fill = Payment_Category)) +
+  geom_col() +
+  # Add the Avg_Payment data labels centered on each bar
+  geom_text(aes(label = round(Avg_Payment, 0)), 
+            position = position_stack(vjust = 0.5),  # Position text in the center of the bar
+            color = "black", size = 3) +  # White text for contrast
+  labs(
+    y = NULL,
+    x = "Average Payment per Patient",
+    fill = "Payment Category"
+  ) +
+  theme_minimal() 
+
+print(dispensingPlot_contract)
 
 
 ```
