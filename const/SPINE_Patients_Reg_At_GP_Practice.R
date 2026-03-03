@@ -258,29 +258,30 @@ prac_imd <- prac_imd %>%
   select(YEAR, PRACTICE_CODE, IMD_SCORE, IMD_QUINTILE, total_weighted_pop, total_pat_in_practice)
 
 
-summary_patients_per_year <- prac_imd %>%
-  group_by(YEAR) %>%
-  summarise(
-    TOTAL_PATIENTS = sum(total_pat_in_practice, na.rm = TRUE),
-    .groups = "drop"
-  )
+# summary_patients_per_year <- prac_imd %>%
+#   group_by(YEAR) %>%
+#   summarise(
+#     TOTAL_PATIENTS = sum(total_pat_in_practice, na.rm = TRUE),
+#     .groups = "drop"
+#   )
+# 
+# summary_quintile_counts <- prac_imd %>%
+#   group_by(YEAR, IMD_QUINTILE) %>%
+#   summarise(
+#     N_PRACTICES = n_distinct(PRACTICE_CODE),
+#     .groups = "drop"
+#   ) %>%
+#   arrange(YEAR, IMD_QUINTILE)
 
-summary_quintile_counts <- prac_imd %>%
-  group_by(YEAR, IMD_QUINTILE) %>%
-  summarise(
-    N_PRACTICES = n_distinct(PRACTICE_CODE),
-    .groups = "drop"
-  ) %>%
-  arrange(YEAR, IMD_QUINTILE)
+# Over65_quintile <- financial %>%
+#   filter(Period == "2023/24") %>%
+#   rename(PRACTICE_CODE = GP_Practice_Code) %>%   
+#   mutate(
+#     YEAR = 2023,
+#     Over65_quintile = ntile(Pct_Over_65, 5)
+#   )
 
-Over65_quintile <- financial %>%
-  filter(Period == "2023/24") %>%
-  rename(PRACTICE_CODE = GP_Practice_Code) %>%   
-  mutate(
-    YEAR = 2023,
-    Over65_quintile = ntile(Pct_Over_65, 5)
-  )
-
+#use this to calcualte average yearly registered users list but only using quarterly registered patients 
 avg_patients_list <- dbGetQuery(con, "
  WITH yearly_periods AS (
   SELECT  
