@@ -142,7 +142,7 @@ GP_Workforce_pivoted <- GP_Workforce_pivoted %>%
                        "Salaried GPs" = "Salaried"))  # Recode the values
 
 # View the results
-head(GP_Workforce_avg)
+#head(GP_Workforce_avg)
 
 # Load dplyr library
 library(dplyr)
