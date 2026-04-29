@@ -3,7 +3,9 @@ library(dplyr)
 library(stringr)
 library(tidyr)
 library(readr)
+library(writexl)
 
+#function to get GP practice level data 
 get_gp_stats <- function(con, period = c("monthly", "yearly", "financial")){
   
   period <- match.arg(period)
@@ -65,10 +67,9 @@ dbGetQuery(con, query)
 
 #yearly <- get_gp_stats(con, "yearly")
 financial <- get_gp_stats(con, "financial")
-monthly <- get_gp_stats(con, "monthly")
+#monthly <- get_gp_stats(con, "monthly")
 
-
-# Load the IMD SQL data (No IMD_DECILE, only IMD_SCORE)
+# Load the IMD SQL data 
 imd_sql <- dbGetQuery(con, "
   SELECT
     LSOA_CODE,
@@ -133,7 +134,7 @@ imd_2011_2021 <- bind_rows( imd,weighted_imd
 imd_2011_2021 <- imd_2011_2021 %>%
   filter(LSOA_DATE == 2021)
 
-# Load SQL data (already done)
+#LOAD ONS LSOA data
 ons_raw <- dbGetQuery(con, "
   SELECT
     Area_Code AS LSOA_CODE,
@@ -150,26 +151,23 @@ ons_raw <- dbGetQuery(con, "
 ons_grouped <- ons_raw %>%
   group_by(LSOA_CODE, Effective_Snapshot_Date) %>%
   summarise(
-    Total_POP = sum(POP, na.rm = TRUE), # Sum of all population
-    .groups = "drop"  # To remove the grouping after summarising
+    Total_POP = sum(POP, na.rm = TRUE), 
+    .groups = "drop" 
   )
 
 # Clean the data
 ons_clean <- ons_raw %>%
   mutate(
-    # Handle '90+' (or other trailing '+') in Age and convert to numeric
     Age = as.character(Age),
-    Age = str_replace(Age, "\\+", ""),        # "90+" -> "90"
-    Age = na_if(Age, ""),                     # empty -> NA
-    Age = suppressWarnings(as.integer(Age)),  # non-numeric -> NA
+    Age = str_replace(Age, "\\+", ""),       
+    Age = na_if(Age, ""),                    
+    Age = suppressWarnings(as.integer(Age)),  
     
-    # Determine year from Effective_Snapshot_Date
     YEAR = lubridate::year(as.Date(Effective_Snapshot_Date)),
     
     # Assign LSOA_DATE based on year (2011 for pre-2021, 2021 otherwise)
     LSOA_DATE = if_else(YEAR <= 2020, 2011L, 2021L),
     
-    # Robust Sex mapping (same logic from your Excel version)
     SEX = case_when(
       str_to_upper(Sex) %in% c("M", "MALE", "MAL", "MAL.", "MALES") ~ "MALE",
       str_to_upper(Sex) %in% c("F", "FEMALE", "FEM", "FEMALES") ~ "FEMALE",
@@ -257,7 +255,10 @@ prac_imd <- prac_imd %>%
   ungroup() %>%
   select(YEAR, PRACTICE_CODE, IMD_SCORE, IMD_QUINTILE, total_weighted_pop, total_pat_in_practice)
 
+#write_xlsx(financial, path = "Financial_Data.xlsx")
+#write_xlsx(prac_imd, path = "Prac_IMD.xlsx")
 
+#Legacy
 # summary_patients_per_year <- prac_imd %>%
 #   group_by(YEAR) %>%
 #   summarise(
@@ -281,47 +282,4 @@ prac_imd <- prac_imd %>%
 #     Over65_quintile = ntile(Pct_Over_65, 5)
 #   )
 
-#use this to calcualte average yearly registered users list but only using quarterly registered patients 
-avg_patients_list <- dbGetQuery(con, "
- WITH yearly_periods AS (
-  SELECT  
-    [GP_Practice_Code],
-    -- Calculate the financial year: if the month is before April, it's the previous year
-    CASE
-      WHEN MONTH([Effective_Snapshot_Date]) >= 4 THEN CAST(YEAR([Effective_Snapshot_Date]) AS VARCHAR)   -- For months April-Dec, the financial year is the current year
-      ELSE CAST(YEAR([Effective_Snapshot_Date]) - 1 AS VARCHAR)  -- For months Jan-Mar, the financial year is the previous year
-    END AS Financial_Year_Start,
-    CASE
-      WHEN MONTH([Effective_Snapshot_Date]) = 1 THEN CAST(YEAR([Effective_Snapshot_Date]) AS VARCHAR) + '-01-01'
-      WHEN MONTH([Effective_Snapshot_Date]) = 4 THEN CAST(YEAR([Effective_Snapshot_Date]) AS VARCHAR) + '-04-01'
-      WHEN MONTH([Effective_Snapshot_Date]) = 7 THEN CAST(YEAR([Effective_Snapshot_Date]) AS VARCHAR) + '-07-01'
-      WHEN MONTH([Effective_Snapshot_Date]) = 10 THEN CAST(YEAR([Effective_Snapshot_Date]) AS VARCHAR) + '-10-01'
-      ELSE NULL
-    END AS Period,
-    [Size]
-  FROM 
-    [Demography].[No_Of_Patients_Regd_At_GP_Practice_Single_Age1]
-  WHERE
-    MONTH([Effective_Snapshot_Date]) IN (1, 4, 7, 10) -- Only include the 4 specific months (January, April, July, October)
-),
-total_size_per_financial_year AS (
-  SELECT
-    -- Concatenate the start year with the next year for the financial year label
-    CAST(Financial_Year_Start AS VARCHAR) + '/' + RIGHT(CAST(CAST(Financial_Year_Start AS INT) + 1 AS VARCHAR), 2) AS Financial_Year,
-    SUM([Size]) AS Total_Size
-  FROM
-    yearly_periods
-  WHERE Period IS NOT NULL
-  GROUP BY 
-    Financial_Year_Start
-)
-SELECT
-  Financial_Year,
-  Total_Size / 4.0 AS Avg_Size_Per_Financial_Year
-FROM 
-  total_size_per_financial_year
-ORDER BY 
-  Financial_Year;
-
-")
 
