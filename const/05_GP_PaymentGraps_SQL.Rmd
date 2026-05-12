@@ -36,18 +36,6 @@ filtered_for_metrics <- finance_datasets %>%
   filter(any(Metric_Value < 1000)) %>%
   ungroup()
 
-#Hidden logic to check for removed practices
-excluded_small_practices <- finance_datasets %>%
-  filter(Metric %in% relevant_metrics) %>%
-  filter(YEAR == "2024") %>%
-  group_by(YEAR, Practice_Code) %>%
-  filter(any(Metric_Value < 1000)) %>%
-  ungroup() %>%
-  distinct(YEAR, Practice_Code)
-
-excluded_small_imd_2024 <- excluded_small_practices %>%
-  left_join(prac_imd, by = c("YEAR", "Practice_Code" = "PRACTICE_CODE"))
-
 #Anti-join to remove
 finance_datasets_filtered <- finance_datasets %>%
   anti_join(filtered_for_metrics, by = c("YEAR", "Practice_Code"))
@@ -68,52 +56,6 @@ outliers_005pct <- finance_datasets_filtered %>%
   ungroup() %>%
   filter(Metric_Value <= p005 | Metric_Value >= p995) %>%
   distinct(YEAR, Practice_Code)
-
-#Hidden logic to look at excluded outliers
-Test_outliers_005pct <- finance_datasets %>%
-  anti_join(excluded_small_practices, by = c("YEAR", "Practice_Code")) %>%
-  filter(Metric %in% relevant_metrics_average) %>%
-  group_by(YEAR) %>%
-  mutate(
-    p005 = quantile(Metric_Value, 0.005, na.rm = TRUE),
-    p995 = quantile(Metric_Value, 0.995, na.rm = TRUE),
-    tail = case_when(
-      Metric_Value <= p005 ~ "bottom_0_5",
-      Metric_Value >= p995 ~ "top_0_5",
-      TRUE ~ NA_character_
-    )
-  ) %>%
-  ungroup() %>%
-  filter(!is.na(tail)) %>%
-  distinct(YEAR, Practice_Code, tail)
-
-excluded_small_imd <- excluded_small_practices %>%
-  left_join(prac_imd, by = c("YEAR", "Practice_Code" = "PRACTICE_CODE")) %>%
-  filter(!is.na(IMD_QUINTILE))
-
-excluded_outliers_imd <- Test_outliers_005pct %>%
-  left_join(prac_imd, by = c("YEAR", "Practice_Code" = "PRACTICE_CODE")) %>%
-  filter(!is.na(IMD_QUINTILE))
-
-excluded_small_summary <- excluded_small_imd %>%
-  group_by(YEAR, IMD_QUINTILE) %>%
-  summarise(
-    n_excluded_small = n_distinct(Practice_Code),
-    .groups = "drop"
-  )
-
-excluded_outliers_summary <- excluded_outliers_imd %>%
-  group_by(YEAR, IMD_QUINTILE, tail) %>%
-  summarise(
-    n = n_distinct(Practice_Code),
-    .groups = "drop"
-  ) %>%
-  pivot_wider(
-    names_from = tail,
-    values_from = n,
-    values_fill = 0
-  )
-
 
 finance_datasets_filtered <- finance_datasets_filtered %>%
   anti_join(outliers_005pct, by = c("YEAR", "Practice_Code"))
