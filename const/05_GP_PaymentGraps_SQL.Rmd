@@ -273,57 +273,6 @@ Avg_Finance_Categories <- finances_IMD_TOTAL %>%
     PayCat_base = factor(PayCat_base, levels = ordered_levels_avg)
   )
 
-#legacy graph code hidden
-#Weighted_By_Year <- ggplot(finance_imd_weighted, aes(
-#  x = YEAR,
- # y = PAYMENT_PER_WEIGHTED_PATIENT,
-#  color = as.factor(IMD_QUINTILE),
-#  group = IMD_QUINTILE
- # )) +
-  #geom_line(linewidth = 1) +
-  #geom_point(size = 2) +
-  #scale_color_brewer(palette = "Set1", name = "IMD Quintile") +
- # scale_x_continuous(
- #   breaks = sort(unique(finance_imd_weighted$YEAR)),  
- #   labels = sort(unique(finance_imd_weighted$YEAR))
- # ) +
- # labs(
- #   title = "Payments per Weighted Patient by IMD Quintile",
-  #  x = "Year",
- #   y = "Payment per Weighted Patient (£)"
- # ) +
-#  theme_minimal(base_size = 14) +
-#  theme(
-#    legend.position = "right",
- #   panel.grid.minor = element_blank(),
-  #  strip.text = element_text(face = "bold")
-  #)
-
-#Registered_By_Year <- ggplot(finance_imd_registered, aes(
- # x = YEAR,
-#  y = PAYMENT_PER_REGISTERED_PATIENT,
- # color = as.factor(IMD_QUINTILE),
-#  group = IMD_QUINTILE
-#)) +
- # geom_line(linewidth = 1) +
-  #geom_point(size = 2) +
-  #scale_color_brewer(palette = "Set1", name = "IMD Quintile") +
-  #scale_x_continuous(
-  #  breaks = sort(unique(finance_imd_registered$YEAR)),  
-  #  labels = sort(unique(finance_imd_registered$YEAR))
-  #) +
- # labs(
-  #  title = "Payments per Registered Patient by IMD Quintile",
-   # x = "Year",
-  #  y = "Payment per Registered Patient (£)"
-  #) +
-  #theme_minimal(base_size = 14) +
-  #theme(
- #   legend.position = "right",
-#    panel.grid.minor = element_blank(),
- #   strip.text = element_text(face = "bold")
- # )
-
 #Registered Patients by IMD Bar Chart
 Registered_Patients_Finance_Categories <- Avg_Finance_Categories %>%
   filter(
