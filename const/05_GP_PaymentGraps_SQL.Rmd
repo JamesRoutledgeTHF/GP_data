@@ -29,7 +29,7 @@ relevant_metrics <- c("Average Number of Registered Patients",
                       "Number of Registered Patients (Last Known Figure)", 
                       "Average number of registered patients1")
 
-#Remove any practices with less than 100 registered patients 
+#Remove any practices with less than 1000 registered patients 
 filtered_for_metrics <- finance_datasets %>%
   filter(Metric %in% relevant_metrics) %>%
   group_by(YEAR, Practice_Code) %>%
