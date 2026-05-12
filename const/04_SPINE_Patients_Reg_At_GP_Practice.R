@@ -23,9 +23,8 @@ imd <- imd_sql %>%
                              IMD_DECILE %in% c(3:4) ~ 2,
                              IMD_DECILE %in% c(5:6) ~ 3,
                              IMD_DECILE %in% c(7:8) ~ 4,
-                             IMD_DECILE %in% c(9:10) ~ 5),
-    LSOA_DATE = 2011) %>%
-  select(LSOA_CODE, IMD_SCORE, IMD_HEALTH, IMD_QUINTILE, LSOA_DATE)
+                             IMD_DECILE %in% c(9:10) ~ 5)) %>%
+  select(LSOA_CODE, IMD_SCORE, IMD_HEALTH, IMD_QUINTILE)
 
 
 # Load the LSOA mapping data
