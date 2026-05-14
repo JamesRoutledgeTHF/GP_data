@@ -29,24 +29,12 @@ relevant_metrics <- c("Average Number of Registered Patients",
                       "Number of Registered Patients (Last Known Figure)", 
                       "Average number of registered patients1")
 
-#Remove any practices with less than 100 registered patients 
+#Remove any practices with less than 1000 registered patients 
 filtered_for_metrics <- finance_datasets %>%
   filter(Metric %in% relevant_metrics) %>%
   group_by(YEAR, Practice_Code) %>%
   filter(any(Metric_Value < 1000)) %>%
   ungroup()
-
-#Hidden logic to check for removed practices
-excluded_small_practices <- finance_datasets %>%
-  filter(Metric %in% relevant_metrics) %>%
-  filter(YEAR == "2024") %>%
-  group_by(YEAR, Practice_Code) %>%
-  filter(any(Metric_Value < 1000)) %>%
-  ungroup() %>%
-  distinct(YEAR, Practice_Code)
-
-excluded_small_imd_2024 <- excluded_small_practices %>%
-  left_join(prac_imd, by = c("YEAR", "Practice_Code" = "PRACTICE_CODE"))
 
 #Anti-join to remove
 finance_datasets_filtered <- finance_datasets %>%
@@ -68,52 +56,6 @@ outliers_005pct <- finance_datasets_filtered %>%
   ungroup() %>%
   filter(Metric_Value <= p005 | Metric_Value >= p995) %>%
   distinct(YEAR, Practice_Code)
-
-#Hidden logic to look at excluded outliers
-Test_outliers_005pct <- finance_datasets %>%
-  anti_join(excluded_small_practices, by = c("YEAR", "Practice_Code")) %>%
-  filter(Metric %in% relevant_metrics_average) %>%
-  group_by(YEAR) %>%
-  mutate(
-    p005 = quantile(Metric_Value, 0.005, na.rm = TRUE),
-    p995 = quantile(Metric_Value, 0.995, na.rm = TRUE),
-    tail = case_when(
-      Metric_Value <= p005 ~ "bottom_0_5",
-      Metric_Value >= p995 ~ "top_0_5",
-      TRUE ~ NA_character_
-    )
-  ) %>%
-  ungroup() %>%
-  filter(!is.na(tail)) %>%
-  distinct(YEAR, Practice_Code, tail)
-
-excluded_small_imd <- excluded_small_practices %>%
-  left_join(prac_imd, by = c("YEAR", "Practice_Code" = "PRACTICE_CODE")) %>%
-  filter(!is.na(IMD_QUINTILE))
-
-excluded_outliers_imd <- Test_outliers_005pct %>%
-  left_join(prac_imd, by = c("YEAR", "Practice_Code" = "PRACTICE_CODE")) %>%
-  filter(!is.na(IMD_QUINTILE))
-
-excluded_small_summary <- excluded_small_imd %>%
-  group_by(YEAR, IMD_QUINTILE) %>%
-  summarise(
-    n_excluded_small = n_distinct(Practice_Code),
-    .groups = "drop"
-  )
-
-excluded_outliers_summary <- excluded_outliers_imd %>%
-  group_by(YEAR, IMD_QUINTILE, tail) %>%
-  summarise(
-    n = n_distinct(Practice_Code),
-    .groups = "drop"
-  ) %>%
-  pivot_wider(
-    names_from = tail,
-    values_from = n,
-    values_fill = 0
-  )
-
 
 finance_datasets_filtered <- finance_datasets_filtered %>%
   anti_join(outliers_005pct, by = c("YEAR", "Practice_Code"))
@@ -331,57 +273,6 @@ Avg_Finance_Categories <- finances_IMD_TOTAL %>%
     PayCat_base = factor(PayCat_base, levels = ordered_levels_avg)
   )
 
-#legacy graph code hidden
-#Weighted_By_Year <- ggplot(finance_imd_weighted, aes(
-#  x = YEAR,
- # y = PAYMENT_PER_WEIGHTED_PATIENT,
-#  color = as.factor(IMD_QUINTILE),
-#  group = IMD_QUINTILE
- # )) +
-  #geom_line(linewidth = 1) +
-  #geom_point(size = 2) +
-  #scale_color_brewer(palette = "Set1", name = "IMD Quintile") +
- # scale_x_continuous(
- #   breaks = sort(unique(finance_imd_weighted$YEAR)),  
- #   labels = sort(unique(finance_imd_weighted$YEAR))
- # ) +
- # labs(
- #   title = "Payments per Weighted Patient by IMD Quintile",
-  #  x = "Year",
- #   y = "Payment per Weighted Patient (£)"
- # ) +
-#  theme_minimal(base_size = 14) +
-#  theme(
-#    legend.position = "right",
- #   panel.grid.minor = element_blank(),
-  #  strip.text = element_text(face = "bold")
-  #)
-
-#Registered_By_Year <- ggplot(finance_imd_registered, aes(
- # x = YEAR,
-#  y = PAYMENT_PER_REGISTERED_PATIENT,
- # color = as.factor(IMD_QUINTILE),
-#  group = IMD_QUINTILE
-#)) +
- # geom_line(linewidth = 1) +
-  #geom_point(size = 2) +
-  #scale_color_brewer(palette = "Set1", name = "IMD Quintile") +
-  #scale_x_continuous(
-  #  breaks = sort(unique(finance_imd_registered$YEAR)),  
-  #  labels = sort(unique(finance_imd_registered$YEAR))
-  #) +
- # labs(
-  #  title = "Payments per Registered Patient by IMD Quintile",
-   # x = "Year",
-  #  y = "Payment per Registered Patient (£)"
-  #) +
-  #theme_minimal(base_size = 14) +
-  #theme(
- #   legend.position = "right",
-#    panel.grid.minor = element_blank(),
- #   strip.text = element_text(face = "bold")
- # )
-
 #Registered Patients by IMD Bar Chart
 Registered_Patients_Finance_Categories <- Avg_Finance_Categories %>%
   filter(
@@ -410,7 +301,7 @@ Barchart_Registered_Patients_By_Categories <- ggplot(Registered_Patients_Finance
   geom_text(
    aes(label = paste0(
       scales::percent(pct, accuracy = 1),  # Percentage (50%)
-      "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
+      "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  
     )),
     size = 2,
     position = position_stack(vjust = 0.5),
@@ -460,7 +351,7 @@ Barchart_Weighted_Patients_By_Categories <- ggplot(
   geom_text(
    aes(label = paste0(
       scales::percent(pct, accuracy = 1),  # Percentage (50%)
-      "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  # Raw number in brackets
+      "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")" 
     )),
     size = 2,
     position = position_stack(vjust = 0.5),
