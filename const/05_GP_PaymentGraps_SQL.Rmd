@@ -300,7 +300,7 @@ Barchart_Registered_Patients_By_Categories <- ggplot(Registered_Patients_Finance
   geom_bar(stat = "identity") +
   geom_text(
    aes(label = paste0(
-      scales::percent(pct, accuracy = 1),  # Percentage (50%)
+      scales::percent(pct, accuracy = 1),  
       "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")"  
     )),
     size = 2,
@@ -350,7 +350,7 @@ Barchart_Weighted_Patients_By_Categories <- ggplot(
   geom_bar(stat = "identity") +
   geom_text(
    aes(label = paste0(
-      scales::percent(pct, accuracy = 1),  # Percentage (50%)
+      scales::percent(pct, accuracy = 1),  
       "\n(", scales::comma(`Total (£)`, accuracy = 0.1), ")" 
     )),
     size = 2,
