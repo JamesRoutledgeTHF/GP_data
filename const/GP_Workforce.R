@@ -182,6 +182,7 @@ gp_practice_final <- gp_practice_summary %>%
 gp_practice_final_clean <- gp_practice_final %>%
   filter(!is.na(Contract_Type))
 
+
 contract_summary <- gp_practice_final_clean %>%
   group_by(Contract_Type) %>%
   summarise(
@@ -192,7 +193,7 @@ contract_summary <- gp_practice_final_clean %>%
   ) %>%
   ungroup()
 
-listsize_summary <- gp_practice_final_clean_listsize %>%
+listsize_summary <- gp_practice_final_clean %>%
   mutate(
     Patient_Band = case_when(
       Metric_Value < 5000 ~ "<4,999",
@@ -242,9 +243,11 @@ gp_region <- gp_practice_final %>%
     payments_region,
     by = c("Practice_Code" = "Practice.Code")
   ) %>%
+  
   rename(
     REGION = NHS.England..Region..Name
   ) %>%
+  
   filter(
     !is.na(REGION),
     !is.na(Metric_Value)   
@@ -266,3 +269,28 @@ gp_region_summary <- gp_region %>%
   arrange(desc(GP_PARTNERS_PER_10000))
 
 gp_region_summary
+
+#for the regional headcount & workforce 
+gp_region_headcount <- gp_practice_final_clean %>%
+  left_join(
+    payments_region,
+    by = c("Practice_Code" = "Practice.Code")
+  ) %>%
+  rename(
+    REGION = NHS.England..Region..Name
+  ) %>%
+  filter(
+    !is.na(REGION),
+    !is.na(Metric_Value)   
+  )
+
+#if we want to work out regional using the practice level data
+gp_region_summary <- gp_region_headcount %>%
+  group_by(REGION) %>%
+  summarise(
+    Total_Contractor_FTE = sum(Avg_Contractor_FTE, na.rm = TRUE),
+    Total_Contractor_Headcount = sum(Avg_Contractor_Headcount, na.rm = TRUE),
+    Total_Salaried_FTE = sum(Avg_Salaried_FTE, na.rm = TRUE),
+    Total_Salaried_Headcount = sum(Avg_Salaried_Headcount, na.rm = TRUE)
+  ) %>%
+  ungroup()
