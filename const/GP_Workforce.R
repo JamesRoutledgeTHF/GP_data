@@ -52,41 +52,6 @@ ORDER BY
 "
 gp_role_summary <- dbGetQuery(con, query_gp_roles)
 
-#query GP headcount and FTE by region
-query_gp_roles_2 <- "
-WITH snapshot_level AS (
-  SELECT 
-    Effective_Snapshot_Date,
-    Commissioner_Code,
-    Staff_Role,
-    SUM(FTE) AS Total_FTE,
-    COUNT(DISTINCT Unique_Identifier) AS Headcount
-  FROM NHS_Workforce.GP_Level_Census_Data1
-  WHERE Staff_Role IN ('GP Partners', 'Salaried GPs')
-    AND Effective_Snapshot_Date BETWEEN '2023-04-01' AND '2024-03-31'
-  GROUP BY 
-    Effective_Snapshot_Date,
-    Commissioner_Code,
-    Staff_Role
-)
-
-SELECT 
-  Commissioner_Code,
-  Staff_Role,
-  AVG(Total_FTE) AS Yearly_Avg_FTE,
-  AVG(Headcount) AS Yearly_Avg_Headcount
-FROM snapshot_level
-GROUP BY 
-  Commissioner_Code,
-  Staff_Role
-ORDER BY 
-  Commissioner_Code,
-  Staff_Role;
-"
-
-#gp_role_all_2 <- dbGetQuery(con, query_gp_roles_2)
-#write_xlsx(gp_role_all_2, path = "GP_Financial_Region_2023_24.xlsx")
-
 #age and gender breakdown for FTE and Headcount
 query_gp_gender_age <- "
 SELECT 
@@ -135,7 +100,7 @@ gp_financial_summary_age_gender <- gp_gender_age %>%
   ungroup() %>%
   arrange(Financial_Year, Staff_Role, Gender, Age_Band)
 
-write_xlsx(gp_financial_summary_age_gender, path = "GP_Gender_Age_Summary.xlsx")
+#write_xlsx(gp_financial_summary_age_gender, path = "GP_Gender_Age_Summary.xlsx")
 
 #for Contract FTE and Workforce
 query_practice_gp <- "
@@ -144,28 +109,28 @@ WITH monthly AS (
         Practice_Code,
         Effective_Snapshot_Date,
 
-        -- Contractor FTE
+        - Contractor FTE
         SUM(CASE 
                 WHEN Detailed_Staff_Role IN ('Partner/Provider', 'Senior Partner')
                      AND Measure = 'FTE'
                 THEN Measure_Value ELSE 0
             END) AS Contractor_FTE,
 
-        -- Contractor Headcount
+        - Contractor Headcount
         SUM(CASE 
                 WHEN Detailed_Staff_Role IN ('Partner/Provider', 'Senior Partner')
                      AND Measure = 'Headcount'
                 THEN Measure_Value ELSE 0
             END) AS Contractor_Headcount,
 
-        -- Salaried FTE
+        - Salaried FTE
         SUM(CASE 
                 WHEN Detailed_Staff_Role IN ('Salaried By Other', 'Salaried By Practice')
                      AND Measure = 'FTE'
                 THEN Measure_Value ELSE 0
             END) AS Salaried_FTE,
 
-        -- Salaried Headcount
+        - Salaried Headcount
         SUM(CASE 
                 WHEN Detailed_Staff_Role IN ('Salaried By Other', 'Salaried By Practice')
                      AND Measure = 'Headcount'
@@ -202,8 +167,14 @@ ORDER BY
 gp_practice_summary <- dbGetQuery(con, query_practice_gp)
 
 finance_datasets_2024 <- finance_datasets %>%
-  filter(YEAR == 2024) %>%
+  filter(
+    YEAR == 2024,
+    Metric == "Average Number of Registered Patients"
+  ) %>%
   distinct(Practice_Code, .keep_all = TRUE)
+
+n_finance <- finance_datasets_2024 %>%
+  summarise(n = n_distinct(Practice_Code))
 
 gp_practice_final <- gp_practice_summary %>%
   left_join(finance_datasets_2024, by = "Practice_Code")
@@ -220,3 +191,78 @@ contract_summary <- gp_practice_final_clean %>%
     Total_Salaried_Headcount = sum(Avg_Salaried_Headcount, na.rm = TRUE)
   ) %>%
   ungroup()
+
+listsize_summary <- gp_practice_final_clean_listsize %>%
+  mutate(
+    Patient_Band = case_when(
+      Metric_Value < 5000 ~ "<4,999",
+      Metric_Value >= 5000 & Metric_Value <= 9999 ~ "5,000 to 9,999",
+      Metric_Value >= 10000 & Metric_Value <= 14999 ~ "10,000 to 14,999",
+      Metric_Value >= 15000 & Metric_Value <= 19999 ~ "15,000 to 19,999",
+      Metric_Value >= 20000 ~ "20,000+",
+      TRUE ~ NA_character_
+    )
+  ) %>%
+  group_by(Patient_Band, Dispensing_Practice) %>%
+  summarise(
+    Total_Contractor_FTE = sum(Avg_Contractor_FTE, na.rm = TRUE),
+    Total_Contractor_Headcount = sum(Avg_Contractor_Headcount, na.rm = TRUE),
+    Total_Salaried_FTE = sum(Avg_Salaried_FTE, na.rm = TRUE),
+    Total_Salaried_Headcount = sum(Avg_Salaried_Headcount, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+disp_rurality_summary <- gp_practice_final_clean %>%
+  group_by(Practice_Rurality, Dispensing_Practice) %>%
+  summarise(
+    Total_Contractor_FTE = sum(Avg_Contractor_FTE, na.rm = TRUE),
+    Total_Contractor_Headcount = sum(Avg_Contractor_Headcount, na.rm = TRUE),
+    Total_Salaried_FTE = sum(Avg_Salaried_FTE, na.rm = TRUE),
+    Total_Salaried_Headcount = sum(Avg_Salaried_Headcount, na.rm = TRUE)
+  ) %>%
+  ungroup()
+
+#write_xlsx(listsize_summary, "listsize_summary.xlsx")
+
+
+
+#Work in Progress...
+#work out gps pr 10,000 patients
+# Region 
+payments_region <- payments2425 %>%
+  select(
+    Practice.Code,
+    NHS.England..Region..Name
+  ) %>%
+  distinct()
+
+# Join GP workforce data to region
+gp_region <- gp_practice_final %>%
+  left_join(
+    payments_region,
+    by = c("Practice_Code" = "Practice.Code")
+  ) %>%
+  rename(
+    REGION = NHS.England..Region..Name
+  ) %>%
+  filter(
+    !is.na(REGION),
+    !is.na(Metric_Value)   
+  )
+
+# Regional summary
+gp_region_summary <- gp_region %>%
+  group_by(REGION) %>%
+  summarise(
+    TOTAL_GP_PARTNERS = sum(Avg_Contractor_Headcount, na.rm = TRUE),
+    TOTAL_REGISTERED_PATIENTS = sum(Metric_Value, na.rm = TRUE),
+    GP_PARTNERS_PER_10000 = (
+      TOTAL_GP_PARTNERS /
+        TOTAL_REGISTERED_PATIENTS
+    ) * 10000,
+    N_PRACTICES = n_distinct(Practice_Code),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(GP_PARTNERS_PER_10000))
+
+gp_region_summary
